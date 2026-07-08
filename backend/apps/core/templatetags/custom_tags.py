@@ -1,0 +1,520 @@
+import json as _json
+import os
+import re
+from decimal import Decimal, InvalidOperation
+
+from django import template
+from django.utils.html import escape
+from django.utils.safestring import mark_safe
+
+register = template.Library()
+
+_ROLE_BADGE_CLASS = {
+    'admin': 'bg-purple-100 text-purple-800',
+    'hr_manager': 'bg-blue-100 text-blue-800',
+    'hr_officer': 'bg-indigo-100 text-indigo-800',
+    'admin_manager': 'bg-violet-100 text-violet-800',
+    'manager': 'bg-emerald-100 text-emerald-800',
+    'specialist': 'bg-amber-100 text-amber-800',
+    'employee': 'bg-slate-100 text-slate-700',
+}
+
+from apps.core.icon_glyphs import render_lucide_glyph
+from apps.employees.status_ui import (
+    build_employee_status_donut_style,
+    employee_status_dist_palette,
+    get_employee_status_ui,
+)
+from apps.maintenance.status_ui import get_maintenance_status_ui
+
+_DIST_PALETTE = employee_status_dist_palette()
+
+
+@register.filter
+def user_display(user, default='—'):
+    """اسم المستخدم للعرض — آمن عند user=None."""
+    if user is None:
+        return default
+    name = (user.get_full_name() or user.username or default).strip()
+    return name or default
+
+
+@register.filter
+def employee_status_donut_style(rows):
+    return build_employee_status_donut_style(rows or [])
+
+
+_GENDER_DONUT_FILL = {
+    'leave': '#0ea5e9',
+    'terminated': '#f43f5e',
+    'suspended': '#f59e0b',
+}
+
+
+@register.filter
+def gender_donut_style(distribution):
+    """CSS conic-gradient for gender distribution donut chart."""
+    items = distribution or []
+    total = sum(int(item.get('c') or 0) for item in items)
+    if total <= 0:
+        return 'conic-gradient(#e2e8f0 0deg 360deg)'
+
+    parts: list[str] = []
+    angle = 0.0
+    for item in items:
+        count = int(item.get('c') or 0)
+        if count <= 0:
+            continue
+        sweep = count * 360.0 / total
+        color_key = gender_dist_color(item.get('gender'))
+        fill = _GENDER_DONUT_FILL.get(color_key, '#94a3b8')
+        end = angle + sweep
+        parts.append(f'{fill} {angle:.2f}deg {end:.2f}deg')
+        angle = end
+
+    if not parts:
+        return 'conic-gradient(#e2e8f0 0deg 360deg)'
+    return f"conic-gradient({', '.join(parts)})"
+
+
+@register.simple_tag
+def lucide_glyph(name, css_class=''):
+    return render_lucide_glyph(name, css_class)
+
+
+@register.inclusion_tag('components/employee_status_badge.html')
+def employee_status_badge(employee=None, status=None, size='sm'):
+    raw_status = status if status is not None else getattr(employee, 'status', '')
+    return {
+        'ui': get_employee_status_ui(raw_status),
+        'size': size,
+    }
+
+
+@register.inclusion_tag('components/maintenance_status_badge.html')
+def maintenance_status_badge(request=None, status=None):
+    raw_status = status if status is not None else getattr(request, 'status', '')
+    return {'ui': get_maintenance_status_ui(raw_status)}
+
+
+@register.filter
+def dist_palette_color(index):
+    """لون عنصر توزيع دوري (لوحة التحكم) — نفس ألوان حالة الموظف."""
+    try:
+        return _DIST_PALETTE[int(index) % len(_DIST_PALETTE)]
+    except (TypeError, ValueError):
+        return _DIST_PALETTE[0]
+
+
+@register.filter
+def gender_dist_color(gender):
+    """لون شريط توزيع الجنس — موحّد مع ألوان حالة الموظف."""
+    if gender == 'female':
+        return 'terminated'
+    if gender == 'male':
+        return 'leave'
+    return 'suspended'
+
+
+@register.filter
+def input_decimal(value):
+    """
+    تنسيق رقم لحقول HTML type=number — دائماً بنقطة عشرية (بدون فاصلة آلاف).
+    المتصفح لا يعرض قيمة مثل 10000,00 في input type=number.
+    """
+    from apps.core.widgets import format_decimal_for_number_input
+    return format_decimal_for_number_input(value)
+
+
+@register.filter
+def js_number(value, default='0'):
+    """
+    رقم آمن لـ Alpine.js / JavaScript — نقطة عشرية دائماً (100.5 لا 100,50).
+    """
+    if value is None or value == '':
+        return mark_safe(str(default))
+    try:
+        amount = Decimal(str(value).replace(',', '.'))
+    except (InvalidOperation, ValueError, TypeError):
+        return mark_safe(str(default))
+    text = format(amount, 'f')
+    if '.' in text:
+        text = text.rstrip('0').rstrip('.') or '0'
+    return mark_safe(text)
+
+
+def _format_amount_value(value, max_decimals=2):
+    """100 بدل 100.00 — مع فاصلة آلاف ونقطة عشرية."""
+    if value is None or value == '':
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+    max_decimals = max(0, min(int(max_decimals or 2), 6))
+    if max_decimals:
+        quantizer = Decimal('0.' + '0' * max_decimals)
+        amount = amount.quantize(quantizer)
+
+    if amount == amount.to_integral_value():
+        return f'{int(amount):,}'
+
+    formatted = f'{float(amount):,.{max_decimals}f}'
+    whole, fraction = formatted.split('.', 1)
+    fraction = fraction.rstrip('0')
+    return whole if not fraction else f'{whole}.{fraction}'
+
+
+@register.filter
+def format_amount(value, max_decimals=2):
+    """
+    تنسيق مبلغ/رقم للعرض: 100 بدل 100.00 أو 100,00 — يحافظ على الكسور عند الحاجة.
+    """
+    formatted = _format_amount_value(value, max_decimals)
+    return formatted if formatted is not None else '—'
+
+
+@register.filter
+def format_sar(value, style='neutral'):
+    """
+    تنسيق مبلغ: 1,234.56 ر.س
+    style: neutral | deduct | earn | net | gross
+    """
+    if value is None or value == '':
+        return mark_safe('<span class="pay-money pay-money--empty">—</span>')
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return mark_safe('<span class="pay-money pay-money--empty">—</span>')
+
+    style = str(style or 'neutral').strip().lower()
+    if style not in ('neutral', 'deduct', 'earn', 'net', 'gross'):
+        style = 'neutral'
+
+    formatted = f'{float(amount):,.2f}'
+    return mark_safe(
+        f'<span class="pay-money pay-money--{style}" dir="ltr">'
+        f'<span class="pay-money__val">{formatted}</span>'
+        f'<span class="pay-money__cur">ر.س</span>'
+        f'</span>'
+    )
+
+
+@register.filter
+def from_json(value):
+    """Parse a JSON string and return a dict; returns None on failure."""
+    try:
+        return _json.loads(value)
+    except Exception:
+        return None
+
+
+@register.filter
+def archive_row_type(statement):
+    """نوع صف الأرشيف (يفصل انتهاء العقد / نهاية الخدمة عن التصفية العادية)."""
+    from apps.employees.selectors.employee_archive import archive_statement_row_type
+    return archive_statement_row_type(statement)
+
+
+@register.filter
+def format_archive_text(value):
+    """
+    يقوم بتحويل النصوص العادية (التي تحتوي على فواصل مثل ─── أو ═══)
+    إلى عناصر HTML — مع تهريب المحتوى لمنع XSS.
+    """
+    if not value:
+        return ""
+
+    value_str = str(value)
+    if '───' not in value_str and '═══' not in value_str:
+        return escape(value_str)
+
+    lines = value_str.split('\n')
+    html = ['<div class="mt-2 space-y-1.5 text-[11px]">']
+
+    current_block = []
+
+    def flush_block():
+        if not current_block:
+            return
+        safe_lines = [escape(line) for line in current_block]
+        content = '<br>'.join(safe_lines)
+
+        content = re.sub(
+            r'^([^:\n]+):',
+            r'<span class="font-bold text-slate-700">\1:</span>',
+            content,
+            flags=re.MULTILINE,
+        )
+
+        content = content.replace(
+            '★ إجمالي المستحقات:',
+            '<span class="font-bold text-emerald-700 text-xs inline-flex items-center gap-1 mt-1">'
+            '<i data-lucide="coins" class="w-3.5 h-3.5"></i> إجمالي المستحقات:</span>',
+        )
+        content = content.replace(
+            '* إجمالي المستحقات:',
+            '<span class="font-bold text-emerald-700 text-xs inline-flex items-center gap-1 mt-1">'
+            '<i data-lucide="coins" class="w-3.5 h-3.5"></i> إجمالي المستحقات:</span>',
+        )
+        content = content.replace(
+            '←',
+            '<i data-lucide="arrow-left" class="w-3 h-3 text-primary-500 inline mx-1"></i>',
+        )
+
+        html.append(
+            f'<div class="bg-white border border-slate-200 rounded p-2 shadow-sm '
+            f'text-slate-600 leading-relaxed">{content}</div>'
+        )
+        current_block.clear()
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        if '═══' in line:
+            flush_block()
+            title = escape(line.replace('═══', '').strip())
+            html.append(
+                f'<div class="font-bold text-primary-700 text-xs mt-3 mb-1 border-b '
+                f'border-primary-100 pb-1 flex items-center gap-1">'
+                f'<i data-lucide="receipt" class="w-3.5 h-3.5"></i> {title}</div>'
+            )
+        elif '───' in line:
+            flush_block()
+        elif line.startswith('ملاحظات:'):
+            flush_block()
+            note_body = escape(line.replace('ملاحظات:', '').strip())
+            html.append(
+                f'<div class="text-slate-500 bg-slate-50 rounded p-1.5 border border-slate-100 '
+                f'mt-1 italic"><span class="font-bold">ملاحظات:</span> {note_body}</div>'
+            )
+        else:
+            current_block.append(line)
+
+    flush_block()
+    html.append('</div>')
+    return mark_safe('\n'.join(html))
+
+
+@register.filter
+def basename(value):
+    """اسم الملف فقط من مسار التخزين."""
+    if not value:
+        return ''
+    return os.path.basename(str(value))
+
+
+@register.filter
+def startswith(value, arg):
+    """Check if value starts with arg"""
+    if value and arg:
+        return str(value).startswith(str(arg))
+    return False
+
+
+@register.filter
+def get_item(dictionary, key):
+    """Get item from dictionary"""
+    if dictionary and key:
+        return dictionary.get(key)
+    return None
+
+
+@register.simple_tag
+def active_class(request, pattern):
+    """Return active class if URL matches pattern"""
+    import re
+    if re.search(pattern, request.path):
+        return 'bg-primary-50 text-primary-700'
+    return 'text-slate-600 hover:bg-slate-100'
+
+
+@register.filter
+def has_permission(user, permission_code):
+    """
+    Template filter للتحقق من صلاحية المستخدم
+    """
+    from apps.core.decorators import has_permission as check_permission
+    return check_permission(user, permission_code)
+
+
+@register.filter
+def has_maintenance_nav(user):
+    """هل يظهر قسم إدارة الصيانة في الشريط الجانبي؟"""
+    from apps.maintenance.sub_permissions import user_has_maintenance_nav
+    return user_has_maintenance_nav(user)
+
+
+@register.filter
+def has_attendance_nav(user):
+    """هل يظهر قسم الحضور والبصمة في الشريط الجانبي؟"""
+    from apps.attendance.sub_permissions import user_has_attendance_nav
+    return user_has_attendance_nav(user)
+
+
+@register.filter
+def is_private_lan_ip(value):
+    """True إن كان IP شبكة محلية — السحب من السيرفر السحابي غير ممكن."""
+    from apps.attendance.validators import is_private_lan_ip as _check
+
+    return _check(str(value))
+
+
+@register.filter
+def is_general_manager(user):
+    """مدير عام / مدير موارد / سوبر يوزر — نفس منطق _is_general_manager في الويب."""
+    if not user or not user.is_authenticated:
+        return False
+    from apps.core.web_views._helpers import _is_general_manager
+    return _is_general_manager(user)
+
+
+@register.simple_tag(takes_context=True)
+def user_has_permission(context, permission_code):
+    """
+    Template tag للتحقق من صلاحية المستخدم
+    """
+    from apps.core.decorators import has_permission as check_permission
+    user = context.get('request').user if 'request' in context else None
+    if not user:
+        return False
+    return check_permission(user, permission_code)
+
+
+@register.filter
+def can_view_salary(user):
+    from apps.core.salary_access import user_can_view_salary
+    return user_can_view_salary(user)
+
+
+@register.filter
+def can_edit_salary(user):
+    from apps.core.salary_access import user_can_edit_salary
+    return user_can_edit_salary(user)
+
+
+@register.inclusion_tag('components/table_actions.html')
+def guarded_table_actions(
+    view_url=None,
+    edit_url=None,
+    delete_url=None,
+    perm_url=None,
+    file_url=None,
+    can_edit=True,
+    can_delete=True,
+    can_perm=True,
+    view_title='',
+    edit_title='تعديل',
+    edit_query='',
+    perm_title='',
+    delete_confirm='',
+    delete_title='',
+    delete_disabled_title='',
+    file_title='',
+):
+    """أزرار جدول مع إخفاء التعديل/الحذف حسب صلاحيات المستخدم."""
+    return {
+        'view_url': view_url or '',
+        'edit_url': edit_url if can_edit and edit_url else '',
+        'delete_url': delete_url if can_delete and delete_url else '',
+        'perm_url': perm_url if can_perm and perm_url else '',
+        'file_url': file_url or '',
+        'view_title': view_title,
+        'edit_title': edit_title,
+        'edit_query': edit_query,
+        'perm_title': perm_title,
+        'delete_confirm': delete_confirm,
+        'delete_title': delete_title,
+        'delete_disabled_title': delete_disabled_title,
+        'file_title': file_title,
+    }
+
+
+@register.simple_tag(takes_context=True)
+def can_see_employee_tab(context, tab_key):
+    """هل يظهر تبويب ملف الموظف للمستخدم الحالي؟"""
+    from apps.core.employee_tab_permissions import user_can_see_employee_tab
+    request = context.get('request')
+    user = getattr(request, 'user', None) if request else None
+    return user_can_see_employee_tab(user, tab_key)
+
+
+@register.inclusion_tag('components/hr_breadcrumb.html')
+def hr_breadcrumb(items):
+    """مسار تنقل هرمي: قائمة {'label', 'url'?, 'icon'?} — الأخير بدون url = الحالي."""
+    return {'items': items or []}
+
+
+@register.filter
+def role_arabic_name(role):
+    """الاسم العربي للدور (بدون CODE —)."""
+    from apps.core.role_catalog import arabic_role_label
+    if not role:
+        return ''
+    if hasattr(role, 'role_type'):
+        return arabic_role_label(role_type=role.role_type, name=getattr(role, 'name', None))
+    return arabic_role_label(name=str(role))
+
+
+@register.filter
+def role_type_arabic(role_type):
+    """الاسم العربي لنوع الدور."""
+    from apps.core.role_catalog import arabic_role_label
+    return arabic_role_label(role_type=role_type)
+
+
+@register.filter
+def role_technical_code(role_type):
+    """رمز الدور التقني من role_catalog."""
+    if not role_type:
+        return '—'
+    try:
+        from apps.core.role_catalog import ROLE_CATALOG
+        return ROLE_CATALOG.get(role_type, {}).get('code', role_type)
+    except Exception:
+        return role_type
+
+
+@register.filter
+def role_badge_class(role_type):
+    """كلاس شارة الدور حسب النوع."""
+    return _ROLE_BADGE_CLASS.get(role_type, 'bg-slate-100 text-slate-700')
+
+
+@register.filter
+def perm_op_short(op_code):
+    """اختصار عمود العملية في مصفوفة الصلاحيات."""
+    from apps.core.permissions_registry import OPERATION_SHORT_LABELS
+    return OPERATION_SHORT_LABELS.get(op_code, op_code)
+
+
+@register.filter
+def split_location(value):
+    """يفصل نص الموقع عن رابط خرائط Google المخزّن معه."""
+    text = (value or '').strip()
+    if not text:
+        return {'text': '', 'url': ''}
+    sep = ' | '
+    idx = text.find(sep)
+    if idx > -1:
+        tail = text[idx + len(sep):].strip()
+        if tail.startswith('http'):
+            return {'text': text[:idx].strip(), 'url': tail}
+    if 'google.com/maps' in text or 'maps.google' in text:
+        return {'text': '', 'url': text}
+    return {'text': text, 'url': ''}
+
+
+@register.simple_tag(takes_context=True)
+def user_permissions(context):
+    """
+    الحصول على كل صلاحيات المستخدم
+    """
+    from apps.core.decorators import get_user_permissions
+    user = context.get('request').user if 'request' in context else None
+    if not user:
+        return []
+    return get_user_permissions(user)

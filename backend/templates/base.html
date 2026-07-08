@@ -1,0 +1,522 @@
+{% load static custom_tags %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}نظام الموارد البشرية{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%232563eb' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>م</text></svg>">
+    
+    <!-- Fonts (self-hosted, no Google Fonts roundtrip) -->
+    <link rel="preload" href="/static/fonts/cairo/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2" as="font" type="font/woff2" crossorigin>
+    <link href="/static/fonts/cairo/cairo.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    
+    <!-- Custom primary colors -->
+    <style>
+        .bg-primary-50 { background-color: #eff6ff; }
+        .bg-primary-100 { background-color: #dbeafe; }
+        .bg-primary-500 { background-color: #3b82f6; }
+        .bg-primary-600 { background-color: #3b82f6; }
+        .bg-primary-700 { background-color: #2563eb; }
+        .text-primary-500 { color: #3b82f6; }
+        .text-primary-600 { color: #3b82f6; }
+        .text-primary-700 { color: #2563eb; }
+        .text-primary-800 { color: #1e40af; }
+        .border-primary-200 { border-color: #bfdbfe; }
+        .border-primary-500 { border-color: #3b82f6; }
+        .border-primary-600 { border-color: #2563eb; }
+        .ring-primary-500 { --tw-ring-color: #3b82f6; }
+        .focus\:ring-primary-500:focus { --tw-ring-color: #3b82f6; }
+        .focus\:border-primary-500:focus { border-color: #3b82f6; }
+        .hover\:bg-primary-700:hover { background-color: #1d4ed8; }
+        .hover\:text-primary-600:hover { color: #2563eb; }
+        .hover\:text-primary-800:hover { color: #1e40af; }
+        .from-primary-500 { --tw-gradient-from: #3b82f6; }
+        .to-primary-700 { --tw-gradient-to: #1d4ed8; }
+
+        /* Slate (TW v3 -> mapped) */
+        .bg-slate-50  { background-color: #f8fafc; }
+        .bg-slate-100 { background-color: #f1f5f9; }
+        .bg-slate-200 { background-color: #e2e8f0; }
+        .bg-slate-300 { background-color: #cbd5e1; }
+        .bg-slate-500 { background-color: #64748b; }
+        .bg-slate-600 { background-color: #475569; }
+        .bg-slate-700 { background-color: #334155; }
+        .bg-slate-800 { background-color: #1e293b; }
+        .bg-slate-900 { background-color: #0f172a; }
+        .text-slate-300 { color: #cbd5e1; }
+        .text-slate-400 { color: #94a3b8; }
+        .text-slate-500 { color: #000000; }
+        .text-slate-600 { color: #000000; }
+        .text-slate-700 { color: #000000; }
+        .text-slate-800 { color: #000000; }
+        .text-slate-900 { color: #000000; }
+        .border-slate-100 { border-color: #f1f5f9; }
+        .border-slate-200 { border-color: #e2e8f0; }
+        .border-slate-300 { border-color: #cbd5e1; }
+        .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #f1f5f9; }
+        .hover\:bg-slate-100:hover { background-color: #f1f5f9; }
+        .hover\:bg-slate-200:hover { background-color: #e2e8f0; }
+        .hover\:text-slate-600:hover { color: #000000; }
+        .hover\:text-slate-700:hover { color: #000000; }
+        .hover\:text-slate-800:hover { color: #000000; }
+        .hover\:text-slate-900:hover { color: #000000; }
+        .hover\:border-slate-300:hover { border-color: #cbd5e1; }
+
+        /* Emerald */
+        .bg-emerald-50  { background-color: #ecfdf5; }
+        .bg-emerald-100 { background-color: #d1fae5; }
+        .bg-emerald-200 { background-color: #a7f3d0; }
+        .bg-emerald-600 { background-color: #059669; }
+        .bg-emerald-700 { background-color: #047857; }
+        .text-emerald-600 { color: #059669; }
+        .text-emerald-700 { color: #047857; }
+        .text-emerald-800 { color: #065f46; }
+        .border-emerald-200 { border-color: #a7f3d0; }
+        .hover\:bg-emerald-700:hover { background-color: #047857; }
+
+        /* Amber */
+        .bg-amber-50  { background-color: #fffbeb; }
+        .bg-amber-100 { background-color: #fef3c7; }
+        .bg-amber-200 { background-color: #fde68a; }
+        .bg-amber-500 { background-color: #f59e0b; }
+        .bg-amber-600 { background-color: #d97706; }
+        .text-amber-600 { color: #d97706; }
+        .text-amber-700 { color: #b45309; }
+        .text-amber-800 { color: #92400e; }
+        .border-amber-200 { border-color: #fde68a; }
+
+        /* Cyan */
+        .bg-cyan-50 { background-color: #ecfeff; }
+        .bg-cyan-100 { background-color: #cffafe; }
+        .bg-cyan-600 { background-color: #0891b2; }
+        .text-cyan-600 { color: #0891b2; }
+        .text-cyan-700 { color: #0e7490; }
+
+        /* Orange */
+        .bg-orange-50 { background-color: #fff7ed; }
+        .bg-orange-100 { background-color: #ffedd5; }
+        .bg-orange-200 { background-color: #fed7aa; }
+        .bg-orange-500 { background-color: #f97316; }
+        .bg-orange-600 { background-color: #ea580c; }
+        .bg-orange-700 { background-color: #c2410c; }
+        .text-orange-600 { color: #ea580c; }
+        .text-orange-700 { color: #c2410c; }
+        .text-orange-800 { color: #9a3412; }
+        .border-orange-200 { border-color: #fed7aa; }
+        .hover\:bg-orange-700:hover { background-color: #c2410c; }
+        .focus\:ring-orange-500:focus { --tw-ring-color: #f97316; }
+        .focus\:border-orange-500:focus { border-color: #f97316; }
+        .file\:bg-orange-50::file-selector-button { background-color: #fff7ed; }
+        .file\:text-orange-700::file-selector-button { color: #c2410c; }
+
+        /* Rose */
+        .bg-rose-50 { background-color: #fff1f2; }
+        .bg-rose-100 { background-color: #ffe4e6; }
+        .bg-rose-200 { background-color: #fecdd3; }
+        .bg-rose-500 { background-color: #f43f5e; }
+        .bg-rose-600 { background-color: #e11d48; }
+        .bg-rose-700 { background-color: #be123c; }
+        .text-rose-600 { color: #e11d48; }
+        .text-rose-700 { color: #be123c; }
+        .text-rose-800 { color: #9f1239; }
+        .border-rose-200 { border-color: #fecdd3; }
+        .hover\:bg-rose-700:hover { background-color: #be123c; }
+        .hover\:text-rose-800:hover { color: #9f1239; }
+
+        /* Sky */
+        .bg-sky-50 { background-color: #f0f9ff; }
+        .bg-sky-100 { background-color: #e0f2fe; }
+        .bg-sky-200 { background-color: #bae6fd; }
+        .bg-sky-500 { background-color: #0ea5e9; }
+        .bg-sky-600 { background-color: #0284c7; }
+        .bg-sky-700 { background-color: #0369a1; }
+        .text-sky-600 { color: #0284c7; }
+        .text-sky-700 { color: #0369a1; }
+        .text-sky-800 { color: #075985; }
+        .border-sky-200 { border-color: #bae6fd; }
+        .hover\:bg-sky-700:hover { background-color: #0369a1; }
+
+        /* Teal */
+        .bg-teal-50 { background-color: #f0fdfa; }
+        .bg-teal-100 { background-color: #ccfbf1; }
+        .bg-teal-600 { background-color: #0d9488; }
+        .bg-teal-700 { background-color: #0f766e; }
+        .text-teal-600 { color: #0d9488; }
+        .text-teal-700 { color: #0f766e; }
+
+        /* Additional emerald shades */
+        .bg-emerald-500 { background-color: #10b981; }
+        .text-emerald-500 { color: #10b981; }
+        .border-emerald-500 { border-color: #10b981; }
+        .border-emerald-600 { border-color: #059669; }
+        .focus\:ring-emerald-500:focus { --tw-ring-color: #10b981; }
+        .focus\:border-emerald-500:focus { border-color: #10b981; }
+        .hover\:bg-emerald-50:hover { background-color: #ecfdf5; }
+        .hover\:text-emerald-700:hover { color: #047857; }
+        .hover\:text-emerald-800:hover { color: #065f46; }
+
+        /* Additional amber shades */
+        .bg-amber-700 { background-color: #b45309; }
+        .hover\:bg-amber-700:hover { background-color: #b45309; }
+        .border-amber-500 { border-color: #f59e0b; }
+
+        /* Additional indigo (already has main but ensure all shades) */
+        .text-indigo-600 { color: #4f46e5; }
+        .text-indigo-700 { color: #4338ca; }
+        .text-indigo-800 { color: #3730a3; }
+        .border-indigo-200 { border-color: #c7d2fe; }
+        .hover\:bg-indigo-700:hover { background-color: #4338ca; }
+        .hover\:text-indigo-700:hover { color: #4338ca; }
+
+    </style>
+    
+    <script>
+    window.hrNum = window.hrNum || function (v) {
+        if (v == null || v === '') return 0;
+        return parseFloat(String(v).replace(/\s/g, '').replace(/,/g, '.')) || 0;
+    };
+    window.hrInt = window.hrInt || function (v) {
+        if (v == null || v === '') return 0;
+        return parseInt(String(v).replace(/\s/g, '').replace(/,/g, '.'), 10) || 0;
+    };
+    </script>
+    
+    <!-- HTMX + Alpine + Lucide — تأجيل التحميل لعدم حجب العرض -->
+    <script defer src="/static/js/htmx.min.js"></script>
+    <script defer src="/static/js/hr-employee-smart-search.js?v=20260622-salary-bank"></script>
+    <script defer src="/static/js/hr-archive-pager.js?v=20260613b"></script>
+    <script defer src="/static/js/hr-table-smart-search.js?v=20260621"></script>
+    <script defer src="/static/js/hr-glass-loader.js?v=20260626-form-loader"></script>
+    <script defer src="/static/js/hr-shell.js?v=20260620c"></script>
+    <script defer src="/static/js/hr-date-picker.js?v=20260621-sidebar-panels"></script>
+    <script defer src="/static/js/hr-barcode-label.js?v=20260626"></script>
+    <script defer src="/static/js/hr-location-picker.js?v=20260706c"></script>
+    <script defer src="/static/js/hr-perms-matrix.js?v=20260706-7"></script>
+    <script defer src="/static/js/alpine.min.js"></script>
+    <script defer src="/static/js/lucide.min.js"></script>
+    
+    <style>
+        * { font-family: 'Cairo', sans-serif; }
+        [x-cloak] { display: none !important; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #ffffff; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 6px; border: 2px solid #f1f5f9; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* HTMX loading indicator — لا يُعرض تلقائياً مع كل طلب (يُربط عبر hx-indicator فقط) */
+        .htmx-indicator { display: none !important; }
+        .htmx-request > .htmx-indicator,
+        [hx-indicator].htmx-request > .htmx-indicator {
+            display: inline-flex !important;
+        }
+        #hr-page-inner.htmx-swapping { opacity: 0.55; transition: opacity 0.12s ease; }
+        
+        /* Transitions */
+        .fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+
+    <!-- طبقة التصميم — بعد ألوان Tailwind المخصصة -->
+    <link href="/static/css/hr-ui.css?v=20260706-single" rel="stylesheet">
+    <link href="/static/css/hr-motion.css?v=20260620-toast-z" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="hr-app min-h-screen">
+
+    <div class="hr-app-shell flex flex-col h-screen min-h-0 overflow-hidden"
+         x-data="hrShellState()"
+         x-init="init()">
+    <!-- Mobile Overlay -->
+    <div id="hrMobileOverlay"
+         class="hr-mobile-overlay md:hidden"
+         data-hr-mobile-menu-close
+         hidden
+         aria-hidden="true"></div>
+
+        <!-- Mobile Sidebar -->
+        <aside id="hrMobileSidebar"
+            class="hr-sidebar hr-sidebar--expanded hr-sidebar--mobile-drawer flex flex-col"
+            hidden
+            aria-hidden="true"
+            aria-label="القائمة الرئيسية"
+        >
+            <div class="hr-sidebar-panel flex flex-col flex-1 min-h-0">
+                <div class="hr-sidebar-mobile-head shrink-0">
+                    <button type="button" data-hr-mobile-menu-close class="hr-topbar-icon-btn ms-auto" title="إغلاق">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <nav class="hr-nav flex-1 min-h-0">
+                    {% include "components/sidebar_nav.html" with always_show=True dropdown_uid='mobile' %}
+                </nav>
+                {% include "components/sidebar_panel_footer.html" with allow_collapse=False always_show=True %}
+            </div>
+        </aside>
+
+        <div class="hr-app-body flex flex-1 min-h-0 min-w-0 overflow-hidden">
+            <!-- Desktop Sidebar -->
+            <aside
+                id="hrDesktopSidebar"
+                class="hr-sidebar hidden md:flex transition-all duration-300 flex-col min-h-0 shrink-0 hr-sidebar--expanded"
+                :class="sidebarOpen ? 'hr-sidebar--expanded' : 'hr-sidebar--collapsed'"
+            >
+                <div class="hr-sidebar-panel flex flex-col flex-1 min-h-0">
+                    <nav class="hr-nav flex-1 min-h-0">
+                        {% include "components/sidebar_nav.html" with always_show=False dropdown_uid='desktop' %}
+                    </nav>
+                    {% include "components/sidebar_panel_footer.html" with allow_collapse=True %}
+                </div>
+            </aside>
+
+            <div class="hr-app-main flex min-w-0 flex-1 flex-col overflow-hidden min-h-0">
+                <header class="hr-topbar shrink-0">
+                    <div class="hr-topbar__start">
+                        <button type="button" @click="toggleSidebar()"
+                                class="hr-topbar-icon-btn hr-topbar-collapse-btn"
+                                :title="sidebarOpen ? 'طي القائمة' : 'توسيع القائمة'"
+                                :aria-expanded="sidebarOpen ? 'true' : 'false'"
+                                aria-controls="hrDesktopSidebar">
+                            <i data-lucide="panel-right" class="w-5 h-5"></i>
+                        </button>
+                        <button type="button" data-hr-mobile-menu-toggle
+                                class="hr-topbar-icon-btn hr-topbar-menu-btn" title="القائمة"
+                                aria-expanded="false" aria-controls="hrMobileSidebar">
+                            <i data-lucide="menu" class="w-5 h-5"></i>
+                        </button>
+                        <div class="hr-topbar__title-wrap">
+                            {% block breadcrumb_parent %}{% endblock %}
+                            <h1 id="hr-topbar-page-title" class="hr-topbar__title">{% block page_title %}لوحة التحكم{% endblock %}</h1>
+                        </div>
+                    </div>
+                    <div class="hr-topbar__end">
+                        <div class="hr-topbar-actions">
+                            {% include "components/topbar_time_pill.html" %}
+                            {% include "components/topbar_date_diff_calculator.html" %}
+                            <div class="hr-topbar-notif">
+                                {% include "components/notifications_dropdown.html" with dropdown_uid='topbar' %}
+                            </div>
+                            {% include "components/topbar_app_info.html" %}
+                            <div class="relative" x-data="{ accountOpen: false }" @click.outside="accountOpen = false">
+                                <button type="button" @click.stop="accountOpen = !accountOpen"
+                                        class="hr-topbar-user" :aria-expanded="accountOpen ? 'true' : 'false'">
+                                    <span class="hr-topbar-user__avatar" aria-hidden="true"><i data-lucide="user-cog" class="w-4 h-4"></i></span>
+                                    <i data-lucide="chevron-down" class="hr-topbar-user__chevron w-4 h-4 hidden sm:block"></i>
+                                </button>
+                                <div x-show="accountOpen" x-cloak x-transition dir="rtl"
+                                     class="hr-topbar-account-panel hr-topbar-light-panel absolute left-0 top-full mt-2 z-50 w-72 rounded-xl py-1.5 overflow-hidden"
+                                     style="display: none;">
+                                    <div class="px-4 py-3 border-b hr-topbar-account-panel__head hr-topbar-light-panel__head flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                        <p class="text-sm font-bold text-slate-900 truncate">{{ user.get_full_name|default:user.username }}</p>
+                                        {% if user.profile.role %}<p class="text-xs text-slate-500 mt-0.5">{{ user.profile.role.name }}</p>{% endif %}
+                                        </div>
+                                        <button type="button"
+                                                class="hr-topbar-light-panel__close shrink-0"
+                                                @click="accountOpen = false"
+                                                title="إغلاق"
+                                                aria-label="إغلاق">
+                                            <i data-lucide="x" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                    <a href="{% url 'web:auth:password_change' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-800 hover:bg-slate-50">
+                                        <i data-lucide="key" class="h-4 w-4 text-slate-500"></i> تغيير كلمة المرور
+                                    </a>
+                                    <div class="my-1 border-t border-slate-100"></div>
+                                    <form method="post" action="{% url 'web:auth:logout' %}" class="m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 text-start border-0 bg-transparent cursor-pointer">
+                                            <i data-lucide="log-out" class="h-4 w-4"></i> تسجيل الخروج
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="hr-main hr-scroll-hide flex-1 min-h-0 relative" style="direction:ltr;">
+                    <div class="hr-page-card">
+                        <div id="hr-htmx-indicator" class="hr-htmx-indicator" aria-hidden="true" hidden>
+                            <span class="hr-htmx-indicator__spinner"></span>
+                        </div>
+                        <div class="hr-page-card__body hr-scroll-hover">
+                            <div id="hr-page-inner" class="hr-page-inner" style="direction:rtl;">
+                            {% block content %}{% endblock %}
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    
+    {% include "components/glass_media_viewer.html" %}
+    {% include "components/glass_text_detail_modal.html" %}
+    {% include "components/glass_loading_popup.html" %}
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+    
+    <!-- Django Messages Data -->
+    {% if messages %}
+    <div id="django-messages" style="display: none;">
+        {% for message in messages %}
+        <div data-message="{{ message }}" data-type="{{ message.tags }}"></div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <script>
+        function hrInitLucide() {
+            if (!window.lucide) return;
+            lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+        }
+
+        var hrLucideTimer;
+        function hrScheduleLucide() {
+            clearTimeout(hrLucideTimer);
+            hrLucideTimer = setTimeout(function () {
+                if ('requestIdleCallback' in window) {
+                    requestIdleCallback(hrInitLucide, { timeout: 600 });
+                } else {
+                    hrInitLucide();
+                }
+            }, 40);
+        }
+
+        // Toast notification function
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            var tag = (type || '').split(/\s+/)[0];
+            if (tag === 'debug') { tag = 'info'; }
+            if (!['success', 'error', 'warning', 'info'].includes(tag)) { tag = 'info'; }
+            toast.className = 'hr-toast hr-toast--' + tag + ' flex items-center gap-2';
+            var span = document.createElement('span');
+            span.textContent = message;
+            toast.appendChild(span);
+            container.appendChild(toast);
+            setTimeout(function () {
+                toast.classList.add('is-leaving');
+                setTimeout(function () { toast.remove(); }, 220);
+            }, 4000);
+        }
+
+        function hrDisableBoostOnForms() {
+            document.querySelectorAll('form').forEach(function (form) {
+                if (!form.hasAttribute('hx-boost')) {
+                    form.setAttribute('hx-boost', 'false');
+                }
+            });
+            document.querySelectorAll('a[download], a[target="_blank"]').forEach(function (link) {
+                link.setAttribute('hx-boost', 'false');
+            });
+        }
+
+        function hrSyncChromeHeight() {
+            var topbar = document.querySelector('.hr-topbar');
+            if (!topbar) return;
+            document.documentElement.style.setProperty('--hr-chrome-height', topbar.getBoundingClientRect().height + 'px');
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            function hrGetCsrfToken() {
+                var meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta && meta.content) return meta.content;
+                var input = document.querySelector('[name=csrfmiddlewaretoken]');
+                return input ? input.value : '';
+            }
+
+            document.body.addEventListener('htmx:configRequest', function (evt) {
+                var token = hrGetCsrfToken();
+                if (token) {
+                    evt.detail.headers['X-CSRFToken'] = token;
+                }
+            });
+
+            if (window.htmx && htmx.config) {
+                htmx.config.includeIndicatorStyles = false;
+            }
+            hrDisableBoostOnForms();
+            hrScheduleLucide();
+            hrSyncChromeHeight();
+            if (window.hrInitDatePickers) window.hrInitDatePickers(document);
+
+            var topbarForResize = document.querySelector('.hr-topbar');
+            if (topbarForResize && typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(hrSyncChromeHeight).observe(topbarForResize);
+            } else {
+                window.addEventListener('resize', hrSyncChromeHeight);
+            }
+
+            var topbarEl = document.querySelector('.hr-topbar');
+            var main = document.querySelector('.hr-main');
+            if (topbarEl && main) {
+                var scrollTick = false;
+                main.addEventListener('scroll', function () {
+                    if (scrollTick) return;
+                    scrollTick = true;
+                    requestAnimationFrame(function () {
+                        topbarEl.classList.toggle('is-scrolled', main.scrollTop > 8);
+                        scrollTick = false;
+                    });
+                }, { passive: true });
+            }
+
+            function hrSyncTopbarPageTitle(fromNode) {
+                var titleEl = document.getElementById('hr-topbar-page-title');
+                if (!titleEl) return;
+                var text = '';
+                if (fromNode) {
+                    text = (fromNode.getAttribute('data-page-title') || '').trim();
+                }
+                if (!text) {
+                    text = titleEl.textContent.trim();
+                }
+                if (!text) {
+                    text = (document.title || '').replace(/\s*[-—|]\s*نظام الموارد البشرية\s*$/i, '').trim();
+                }
+                if (text) {
+                    titleEl.textContent = text;
+                }
+            }
+
+            hrSyncTopbarPageTitle();
+
+            document.body.addEventListener('htmx:afterSwap', function (evt) {
+                hrScheduleLucide();
+                if (window.hrInitDatePickers) window.hrInitDatePickers(evt.detail.target || document);
+                if (window.hrInitNavDropdowns) window.hrInitNavDropdowns(evt.detail.target || document);
+                if (evt.detail.target && evt.detail.target.classList && evt.detail.target.classList.contains('hr-notif-panel')) {
+                    hrScheduleLucide();
+                    return;
+                }
+                if (evt.detail.target && evt.detail.target.id === 'hr-page-inner') {
+                    hrSyncTopbarPageTitle(evt.detail.target);
+                    if (window.Alpine && typeof Alpine.initTree === 'function') {
+                        Alpine.initTree(evt.detail.target);
+                    }
+                }
+            });
+
+            var messagesContainer = document.getElementById('django-messages');
+            if (messagesContainer) {
+                var toastContainer = document.getElementById('toast-container');
+                if (toastContainer) toastContainer.innerHTML = '';
+                messagesContainer.querySelectorAll('[data-message]').forEach(function (msg) {
+                    showToast(msg.dataset.message, msg.dataset.type);
+                });
+            }
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

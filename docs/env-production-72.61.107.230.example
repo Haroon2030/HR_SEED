@@ -1,0 +1,92 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# HR Pro — إنتاج (72.61.107.230:8082 — HTTP legacy)
+# للنطاق HTTPS استخدم: docs/env-production-hr.alrsheed.net.example
+# ═══════════════════════════════════════════════════════════════════════════════
+
+DJANGO_ENV=production
+DJANGO_SETTINGS_MODULE=config.settings
+TIME_ZONE=Asia/Riyadh
+DEBUG=False
+PORT=8082
+
+SECRET_KEY=change-me-long-random-secret
+
+DATABASE_URL=postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-morning-rice-ab19c977-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require
+DB_SSLMODE=require
+CONN_MAX_AGE=600
+MIGRATE_MAX_RETRIES=5
+MIGRATE_RETRY_SECS=5
+
+ALLOWED_HOSTS=72.61.107.230,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=http://72.61.107.230:8082,http://72.61.107.230
+
+USE_HTTPS=false
+SECURE_SSL_REDIRECT=false
+# على HTTP يجب false — وإلا لا يعمل تسجيل الدخول (الكود يُجبرها false تلقائياً)
+SESSION_COOKIE_SECURE=false
+CSRF_COOKIE_SECURE=false
+SESSION_COOKIE_HTTPONLY=true
+SESSION_EXPIRE_AT_BROWSER_CLOSE=true
+SESSION_COOKIE_AGE=28800
+
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOWED_ORIGINS=http://72.61.107.230:8082,http://72.61.107.230
+
+GUNICORN_WORKERS=3
+GUNICORN_THREADS=4
+GUNICORN_TIMEOUT=120
+
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_PASSWORD=change-me
+DJANGO_SUPERUSER_EMAIL=admin@alrsheed.net
+
+USE_R2=True
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+R2_BUCKET_NAME=erphr
+R2_ENDPOINT_URL=https://your-account-id.r2.cloudflarestorage.com
+R2_REGION=auto
+R2_PUBLIC_DOMAIN=
+R2_SIGNED_URLS=true
+R2_SIGNED_URL_EXPIRE=3600
+R2_PROXY_MEDIA=true
+
+EMAIL_HOST=smtp.hostinger.com
+EMAIL_PORT=465
+EMAIL_USE_SSL=True
+EMAIL_USE_TLS=False
+EMAIL_HOST_USER=your-mailbox@alrsheed.net
+EMAIL_HOST_PASSWORD=your-email-password
+DEFAULT_FROM_EMAIL=HR Pro <your-mailbox@alrsheed.net>
+HR_NOTIFICATION_EMAIL=admin@alrsheed.net
+EMAIL_TIMEOUT=30
+
+BIOMETRIC_MOCK_MODE=false
+BIOMETRIC_ZK_TIMEOUT=20
+BIOMETRIC_ZK_OMIT_PING=true
+
+ATTENDANCE_AGENT_API_KEY=your-agent-api-key
+ATTENDANCE_REQUIRE_INGEST_SIGNATURE=true
+AGENT_GLOBAL_KEY_LIST_DEVICES=false
+AGENT_GLOBAL_KEY_ALLOW_INGEST=false
+DRF_ATTENDANCE_AGENT_THROTTLE=120/hour
+
+BACKUP_STORAGE_DIR=/app/backups
+BACKUP_ENABLED=true
+BACKUP_BEFORE_MIGRATE=true
+BACKUP_NOTIFY_ON_SUCCESS=true
+BACKUP_NOTIFY_ON_FAILURE=true
+BACKUP_NOTIFY_EMAIL=admin@alrsheed.net
+BACKUP_SCHEDULE=0 3 * * *
+
+OPERATIONS_REPORT_CRON=true
+OPERATIONS_REPORT_CRON_SCHEDULE=* * * * *
+
+WHATSAPP_ENABLED=true
+EVOLUTION_API_URL=http://72.61.107.230:8081
+EVOLUTION_API_KEY=your-evolution-global-api-key
+EVOLUTION_INSTANCE=hr
+EVOLUTION_API_TIMEOUT=20
+WHATSAPP_DEFAULT_COUNTRY=966
+
+# REDIS_URL=redis://YOUR_REDIS_HOST:6379/0

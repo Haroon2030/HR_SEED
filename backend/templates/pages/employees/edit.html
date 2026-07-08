@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-4" x-data="employeeEditForm">
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+        {% url 'web:list_employees' as employees_list_url %}
+        {% include 'components/glass_back_link.html' with back_url=employees_list_url aria_label='رجوع لقائمة الموظفين' %}
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">{% if is_create %}إضافة موظف جديد{% else %}ملف الموظف: {{ employee.name }}{% endif %}</h1>
+            <p class="text-slate-500 text-xs">{% if is_create %}أدخل بيانات الموظف الكاملة{% else %}إكمال وتعديل بيانات الموظف{% endif %}</p>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="return_tab" :value="activeTab">
+
+        {% if form and form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">
+            <p class="font-bold mb-2 flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                تعذّر الحفظ — راجع الحقول التالية:
+            </p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                {% for field, errors in form.errors.items %}
+                <li><strong>{{ field }}:</strong> {{ errors.0 }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% include "components/page_tabs_start.html" with wrapper_class="hr-glass-form hr-page-tabs bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" aria_label="أقسام ملف الموظف" %}
+                {% include "pages/employees/_tab_nav.html" %}
+        {% include "components/page_tabs_body_start.html" %}
+
+            <!-- Tab 1: بيانات الموظف -->
+            {% if tab_visible.main %}
+            <div x-show="activeTab === 'main'" class="p-5"{% if default_employee_tab == 'main' or not default_employee_tab %} style="display:block"{% else %} x-cloak{% endif %}>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الاسم <span class="text-red-500">*</span></label>
+                        <input type="text" name="name" required value="{% if form %}{{ form.name.value|default:employee.name }}{% else %}{{ employee.name }}{% endif %}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الجنس</label>
+                        <select name="gender">
+                            <option value="male" {% if employee.gender == 'male' or not employee.gender %}selected{% endif %}>ذكر</option>
+                            <option value="female" {% if employee.gender == 'female' %}selected{% endif %}>أنثى</option>
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">رقم الهوية</label>
+                        <input type="text" name="id_number" value="{{ employee.id_number }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">رقم الجوال</label>
+                        <input type="text" name="phone" value="{{ employee.phone }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الإيميل</label>
+                        <input type="email" name="email" value="{{ employee.email }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الرقم الوظيفي</label>
+                        <input type="text" name="employee_number" value="{{ employee.employee_number }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الجنسية</label>
+                        <select name="nationality" @change="onNationalityChange()">
+                            <option value="">-- اختر --</option>
+                            {% for n in nationalities %}<option value="{{ n.id }}" {% if employee.nationality_id == n.id %}selected{% endif %}>{{ n.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">المهنة</label>
+                        <select name="profession">
+                            <option value="">-- اختر --</option>
+                            {% for p in professions %}<option value="{{ p.id }}" {% if employee.profession_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الشركة</label>
+                        <select name="sponsorship" x-model="sponsorshipId">
+                            <option value="">-- اختر --</option>
+                            {% for s in sponsorships %}<option value="{{ s.id }}" {% if employee.sponsorship_id == s.id %}selected{% endif %}>{{ s.company_name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الفرع</label>
+                        <select name="branch">
+                            <option value="">-- اختر --</option>
+                            {% for b in branches %}<option value="{{ b.id }}" {% if employee.branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">القسم</label>
+                        <select name="department">
+                            <option value="">-- اختر --</option>
+                            {% for d in departments %}<option value="{{ d.id }}" {% if employee.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الإدارة</label>
+                        <select name="administration">
+                            <option value="">-- اختر --</option>
+                            {% for a in administrations %}
+                            <option value="{{ a.id }}" {% if employee.administration_id == a.id %}selected{% endif %}>{% if a.code %}{{ a.code }}{% if a.name and a.code != a.name %} — {{ a.name }}{% endif %}{% else %}{{ a.name }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">مركز التكلفة</label>
+                        <select name="cost_center">
+                            <option value="">-- اختر --</option>
+                            {% for c in cost_centers %}<option value="{{ c.id }}" {% if employee.cost_center_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">التأمين الطبي</label>
+                        <select name="insurance">
+                            <option value="">-- اختر --</option>
+                            {% for i in insurances %}<option value="{{ i.id }}" {% if employee.insurance_id == i.id %}selected{% endif %}>{{ i.insurance_type }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">فئة التأمين</label>
+                        <select name="insurance_class">
+                            <option value="">-- اختر --</option>
+                            {% for ic in insurance_classes %}<option value="{{ ic.id }}" {% if employee.insurance_class_id == ic.id %}selected{% endif %}>{{ ic.class_type }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">السكن</label>
+                        <select name="housing">
+                            <option value="">-- اختر --</option>
+                            {% for bld in buildings %}<option value="{{ bld.id }}" {% if employee.housing_id == bld.id %}selected{% endif %}>{{ bld.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الكرت الصحي</label>
+                        <select name="health_card_status">
+                            <option value="not_available" {% if employee.health_card_status == 'not_available' or not employee.health_card_status %}selected{% endif %}>غير متوفر</option>
+                            <option value="available" {% if employee.health_card_status == 'available' %}selected{% endif %}>متوفر</option>
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">تاريخ انتهاء الكرت الصحي</label>
+                        <input type="date" name="health_card_expiry" value="{{ employee.health_card_expiry|date:'Y-m-d' }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">تاريخ المباشرة</label>
+                        <input type="date" name="hire_date" value="{{ employee.hire_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">تاريخ التوقف</label>
+                        <input type="date" name="end_date" value="{{ employee.end_date|date:'Y-m-d' }}" title="يُعبَّأ تلقائياً عند التصفية أو إنهاء العقد، ويمكن تعديله يدوياً">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">تاريخ انتهاء التأمين الطبي</label>
+                        <input type="date" name="medical_insurance_expiry_date" value="{{ employee.medical_insurance_expiry_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">حالة الموظف</label>
+                        <select name="status">
+                            <option value="active" {% if employee.status == 'active' %}selected{% endif %}>على رأس العمل</option>
+                            <option value="leave" {% if employee.status == 'leave' %}selected{% endif %}>في إجازة</option>
+                            <option value="suspended" {% if employee.status == 'suspended' %}selected{% endif %}>موقوف</option>
+                            <option value="terminated" {% if employee.status == 'terminated' %}selected{% endif %}>منتهي الخدمة</option>
+                        </select>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">سبب الانتهاء</label>
+                        <input type="text" name="end_reason" value="{{ employee.end_reason }}">
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tab: العقد -->
+            {% if tab_visible.contract %}
+            <div x-show="activeTab === 'contract'" class="p-5 space-y-4"{% if default_employee_tab == 'contract' %} style="display:block"{% else %} x-cloak{% endif %}>
+                <div x-show="isSaudi()" class="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                    <div>
+                        <p class="font-bold mb-1">قواعد عقد السعودي</p>
+                        <p>مدة العقد المحدد لا تتجاوز سنة واحدة (12 شهراً).</p>
+                        <p x-show="fourthYearStart()" class="mt-1">من بداية السنة الرابعة (<span x-text="fourthYearStart()"></span>) يتحول العقد تلقائياً إلى <strong>غير محدد المدة</strong>.</p>
+                        <p x-show="isAutoUnlimited()" class="mt-1 text-emerald-800 font-bold">✓ الموظف في مرحلة «غير محدد المدة» حسب تاريخ المباشرة.</p>
+                    </div>
+                </div>
+                <div x-show="!isSaudi() && getNationalityId()" class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-xs flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                    <span>الأجنبي: عقد <strong>محدد المدة</strong> — أدخل مدة العقد كنص (مثال: سنتان / 24 شهر).</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">نوع العقد</label>
+                        <select                                :disabled="isAutoUnlimited()"
+                                :name="isAutoUnlimited() ? '_contract_type_ui' : 'contract_type'"
+                                x-effect="if (isAutoUnlimited()) { $el.value = 'unlimited'; }">
+                            <option value="">-- اختر --</option>
+                            <option value="fixed" {% if employee.contract_type == 'fixed' %}selected{% endif %}>محدد المدة</option>
+                            <option value="unlimited" {% if employee.contract_type == 'unlimited' %}selected{% endif %}>غير محدد المدة</option>
+                        </select>
+                        <template x-if="isAutoUnlimited()">
+                        <input type="hidden" name="contract_type" value="unlimited">
+                        </template>
+                    </div>
+
+                    <div class="hr-form-field" x-show="isSaudi() && isFixedContract()" x-cloak>
+                        <label class="block text-xs font-bold text-slate-800">مدة العقد (أشهر)</label>
+                        <input type="number" name="contract_duration_months" min="1" max="12" step="1"
+                               value="{{ employee.contract_duration_months|input_decimal|default:'' }}"
+                               placeholder="1–12"
+>
+                        <p class="text-[10px] text-slate-500">حد أقصى 12 شهراً للسعودي</p>
+                    </div>
+
+                    <div class="hr-form-field" x-show="!isSaudi() && isFixedContract()" x-cloak>
+                        <label class="block text-xs font-bold text-slate-800">مدة العقد</label>
+                        <input type="text" name="contract_duration_text" maxlength="100"
+                               value="{{ employee.contract_duration_text|default:'' }}"
+                               placeholder="مثال: سنتان / 24 شهر"
+>
+                    </div>
+
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">تاريخ بداية العقد</label>
+                        <input type="date" name="contract_start_date"
+                               value="{{ employee.contract_start_date|date:'Y-m-d' }}"
+>
+                    </div>
+
+                    <div class="hr-form-field" x-show="isFixedContract()" x-cloak>
+                        <label class="block text-xs font-bold text-slate-800">تاريخ نهاية العقد</label>
+                        <input type="date" name="contract_expiry_date"
+                               value="{{ employee.contract_expiry_date|date:'Y-m-d' }}"
+>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tab 2: الراتب -->
+            {% if tab_visible.salary %}
+            <div x-show="activeTab === 'salary'" class="p-5"{% if default_employee_tab == 'salary' %} style="display:block"{% else %} x-cloak{% endif %}>
+                {% include "pages/employees/_salary_tab_content.html" %}
+            </div>
+            {% endif %}
+
+            <!-- Tab 3: الإجازات -->
+            {% if tab_visible.leaves %}
+            <div x-show="activeTab === 'leaves'" class="p-5"{% if default_employee_tab == 'leaves' %} style="display:block"{% else %} x-cloak{% endif %}>
+                {% if not employee.sponsorship_id %}
+                <div class="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs flex items-start gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5"></i>
+                    <span>يبدأ احتساب الإجازات تلقائياً فور تعبئة <b>الكفالة</b> في تبويب "بيانات الموظف".</span>
+                </div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 p-4 rounded-lg border border-slate-200 bg-slate-50/80">
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">الرصيد الافتتاحي (أيام)</label>
+                        <input type="number" step="0.01" min="0" name="opening_leave_days"
+                               value="{{ employee.opening_leave_days|input_decimal }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                               placeholder="0">
+                        <p class="text-[10px] text-slate-500 mt-1">المتبقي قبل تاريخ الاحتساب (إن وُجد).</p>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">تاريخ الاحتساب</label>
+                        <input type="date" name="leave_accrual_start_date"
+                               value="{{ employee.leave_accrual_start_date|date:'Y-m-d' }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none">
+                        <p class="text-[10px] text-slate-500 mt-1">يُحسب التراكم من هذا التاريخ + الرصيد الافتتاحي. بدونه يُحسب من تاريخ المباشرة.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-emerald-700 mb-1">الرصيد المستحق</div>
+                        <div class="text-lg font-bold text-emerald-800">{{ employee.accrued_leave_days|default:"0.0" }} يوم</div>
+                        <div class="text-[10px] text-emerald-600 mt-1">
+                            {% if employee.leave_accrual_start_date %}
+                            افتتاحي + تراكم من {{ employee.leave_accrual_start_date|date:"Y-m-d" }}
+                            {% elif employee.hire_date %}
+                            من تاريخ المباشرة {{ employee.hire_date|date:"Y-m-d" }}
+                            {% else %}
+                            يتطلب كفالة وتاريخ مباشرة أو تاريخ احتساب
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-red-700 mb-1">الإجازات المستخدمة</div>
+                        {% if employee.leave_accrual_start_date %}
+                        <div class="text-lg font-bold text-red-800">{{ employee.used_leave_days|default:"0.0" }} يوم</div>
+                        <div class="text-[10px] text-red-600 mt-1">من سجلات الإجازة بعد {{ employee.leave_accrual_start_date|date:"Y-m-d" }}</div>
+                        {% else %}
+                        <div class="flex items-center gap-2">
+                            <input type="number" step="0.5" name="available_leave_balance" value="{{ employee.available_leave_balance|input_decimal }}" class="w-full px-2 py-1.5 border border-red-300 bg-white rounded-md text-sm text-red-800 font-bold">
+                            <span class="text-xs text-red-700">يوم</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="bg-primary-50 border border-primary-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-primary-700 mb-1">الرصيد المتبقي</div>
+                        <div class="text-lg font-bold text-primary-800">{{ employee.remaining_leave_days|default:"0.0" }} يوم</div>
+                        <div class="text-[10px] text-primary-600 mt-1">المستحق - المستخدم</div>
+                    </div>
+                </div>
+
+                <div class="hr-form-field">
+                    <label class="block text-xs font-bold text-slate-800">أرشيف الإجازات</label>
+                    <textarea name="leaves_archive" rows="4" placeholder="سجل الإجازات السابقة (التواريخ، الأنواع، الملاحظات...)">{{ employee.leaves_archive }}</textarea>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tab 4: الجدول -->
+            {% if tab_visible.schedule %}
+            <div x-show="activeTab === 'schedule'" class="p-5"{% if default_employee_tab == 'schedule' %} style="display:block"{% else %} x-cloak{% endif %}>
+                <div class="space-y-3">
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800">الحضور والانصراف الشهري</label>
+                        <textarea name="attendance_notes" rows="4">{{ employee.attendance_notes }}</textarea>
+                    </div>
+                    {% if not is_create %}
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold text-blue-900 mb-1">جدول الدوام</div>
+                            <div class="text-xs text-blue-700 mb-2">
+                                لإدارة جدول الدوام (إضافة/تعديل/حذف الأشهر وتحديد الأيام) يُرجى استخدام تبويب "الجدول" في صفحة عرض الموظف.
+                            </div>
+                            <a href="{% url 'web:view_employee' employee.id %}?tab=schedule"
+                               class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md">
+                                <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>
+                                فتح إدارة الجدول
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tab: المستندات -->
+            {% if tab_visible.docs %}
+            <div x-show="activeTab === 'docs'" class="p-5"{% if default_employee_tab == 'docs' %} style="display:block"{% else %} x-cloak{% endif %}>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div class="hr-form-field">
+                        {% if employee.commencement_document %}<div class="mb-1">{% include "components/media_preview_btn.html" with url=employee.commencement_document.url title="مستند المباشرة" label="الحالي" btn_class="text-xs text-primary-600 font-semibold inline-flex items-center gap-1" icon="eye" icon_class="w-3 h-3" %}</div>{% endif %}
+                        {% include 'components/file_upload.html' with name='commencement_document' label='مستند المباشرة' existing_filename=employee.commencement_document.name|basename %}
+                    </div>
+                    <div class="hr-form-field">
+                        {% if employee.id_document %}<div class="mb-1">{% include "components/media_preview_btn.html" with url=employee.id_document.url title="صورة الهوية" label="الحالي" btn_class="text-xs text-primary-600 font-semibold inline-flex items-center gap-1" icon="eye" icon_class="w-3 h-3" %}</div>{% endif %}
+                        {% include 'components/file_upload.html' with name='id_document' label='صورة الهوية' existing_filename=employee.id_document.name|basename %}
+                    </div>
+                    <div class="hr-form-field">
+                        {% if employee.passport_document %}<div class="mb-1">{% include "components/media_preview_btn.html" with url=employee.passport_document.url title="جواز السفر" label="الحالي" btn_class="text-xs text-primary-600 font-semibold inline-flex items-center gap-1" icon="eye" icon_class="w-3 h-3" %}</div>{% endif %}
+                        {% include 'components/file_upload.html' with name='passport_document' label='جواز السفر' existing_filename=employee.passport_document.name|basename %}
+                    </div>
+                    <div class="hr-form-field">
+                        {% if employee.contract_document %}<div class="mb-1">{% include "components/media_preview_btn.html" with url=employee.contract_document.url title="العقد" label="الحالي" btn_class="text-xs text-primary-600 font-semibold inline-flex items-center gap-1" icon="eye" icon_class="w-3 h-3" %}</div>{% endif %}
+                        {% include 'components/file_upload.html' with name='contract_document' label='العقد' existing_filename=employee.contract_document.name|basename %}
+                    </div>
+                    <div class="hr-form-field">
+                        {% if employee.other_documents %}<div class="mb-1">{% include "components/media_preview_btn.html" with url=employee.other_documents.url title="مستندات أخرى" label="الحالي" btn_class="text-xs text-primary-600 font-semibold inline-flex items-center gap-1" icon="eye" icon_class="w-3 h-3" %}</div>{% endif %}
+                        {% include 'components/file_upload.html' with name='other_documents' label='مستندات أخرى' existing_filename=employee.other_documents.name|basename %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% include "components/page_tabs_end.html" %}
+
+        <!-- Actions -->
+        {% url 'web:list_employees' as emp_cancel_url %}
+        {% if is_create %}
+        {% include "components/form_actions.html" with cancel_url=emp_cancel_url submit_label="حفظ الموظف" %}
+        {% else %}
+        {% include "components/form_actions.html" with cancel_url=emp_cancel_url submit_label="حفظ التغييرات" %}
+        {% endif %}
+    </form>
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('employeeEditForm', () => ({
+            activeTab: '{% firstof default_employee_tab "main" %}',
+            sponsorshipId: '{% if employee.sponsorship_id %}{{ employee.sponsorship_id }}{% endif %}',
+            saudiIds: [{% for id in saudi_nationality_ids %}{{ id }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            salaryBasic: {% if is_create %}''{% else %}'{{ employee.basic_salary|input_decimal }}'{% endif %},
+            salaryHousing: {% if is_create %}''{% else %}'{{ employee.housing_allowance|input_decimal }}'{% endif %},
+            salaryTransport: {% if is_create %}''{% else %}'{{ employee.transport_allowance|input_decimal }}'{% endif %},
+            salaryOther: {% if is_create %}''{% else %}'{{ employee.other_allowance|input_decimal }}'{% endif %},
+            salaryMeal: {% if is_create %}''{% else %}'{{ employee.meal_allowance|input_decimal }}'{% endif %},
+            salaryInsuranceRate: {% if is_create %}''{% elif employee.insurance_deduction_rate %}'{{ employee.insurance_deduction_rate|input_decimal }}'{% else %}''{% endif %},
+            salaryNum(v) {
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? n : 0;
+            },
+            salaryTotal() {
+                return this.salaryNum(this.salaryBasic) + this.salaryNum(this.salaryHousing)
+                    + this.salaryNum(this.salaryTransport) + this.salaryNum(this.salaryOther)
+                    + this.salaryNum(this.salaryMeal);
+            },
+            switchTab(key) {
+                const labels = {
+                    main: 'البيانات', contract: 'العقد', salary: 'الراتب', leaves: 'الإجازات',
+                    schedule: 'الدوام', docs: 'المستندات',
+                };
+                const store = window.Alpine && Alpine.store('glassLoader');
+                if (store) {
+                    store.show('جاري تحميل ' + (labels[key] || 'القسم'));
+                    store.scheduleHide(240);
+                }
+                this.activeTab = key;
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', key);
+                    window.history.replaceState({}, '', url);
+                } catch (_e) { /* ignore */ }
+                this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+            },
+            payrollMode() {
+                return String(this.sponsorshipId || '').trim() ? 'transfer' : 'cash';
+            },
+            payrollModeLabel() {
+                if (this.payrollMode() !== 'transfer') {
+                    return 'صرف نقدي كامل';
+                }
+                const el = document.querySelector('[name=sponsorship]');
+                const sid = String(this.sponsorshipId || '').trim();
+                const opt = el && sid ? el.querySelector('option[value="' + sid + '"]') : null;
+                const text = opt ? opt.text.trim() : '';
+                return text ? ('تحويل بنكي كامل - ' + text) : 'تحويل بنكي كامل';
+            },
+            getNationalityId() {
+                const el = document.querySelector('[name=nationality]');
+                return el && el.value ? parseInt(el.value, 10) : null;
+            },
+            isSaudi() {
+                const id = this.getNationalityId();
+                return id && this.saudiIds.includes(id);
+            },
+            getHireDate() {
+                const el = document.querySelector('[name=hire_date]');
+                return el ? el.value : '';
+            },
+            fourthYearStart() {
+                const hd = this.getHireDate();
+                if (!hd) return null;
+                const p = hd.split('-');
+                if (p.length !== 3) return null;
+                return (parseInt(p[0], 10) + 3) + '-' + p[1] + '-' + p[2];
+            },
+            isAutoUnlimited() {
+                if (!this.isSaudi() || !this.getHireDate()) return false;
+                const today = new Date().toISOString().slice(0, 10);
+                const fy = this.fourthYearStart();
+                return fy && today >= fy;
+            },
+            getContractType() {
+                if (this.isAutoUnlimited()) return 'unlimited';
+                const el = document.querySelector('[name=contract_type]');
+                return el ? el.value : '';
+            },
+            isFixedContract() {
+                if (this.isAutoUnlimited()) return false;
+                return this.getContractType() !== 'unlimited';
+            },
+            saudiInsuranceRates: [10.75, 10.25, 9.75],
+            onNationalityChange() {
+                if (!this.isSaudi()) return;
+                const rate = parseFloat(this.salaryInsuranceRate);
+                if (!this.saudiInsuranceRates.includes(rate)) {
+                    this.salaryInsuranceRate = '';
+                }
+            },
+        }));
+        lucide.createIcons();
+    });
+    document.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); });
+</script>
+<style>[x-cloak] { display: none !important; }</style>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            {% if branch %}
+            {% url 'web:view_branch' branch.id as back_url %}
+            {% include 'components/glass_back_link.html' with back_url=back_url aria_label='رجوع للفرع' %}
+            {% endif %}
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">الأقسام{% if branch %} — {{ branch.name }}{% endif %}</h1>
+            </div>
+        </div>
+        {% if branch %}{% url 'web:add_department' branch.id as add_dept_url %}{% else %}{% url 'web:add_department_global' as add_dept_url %}{% endif %}
+        {% include "components/hr_btn.html" with href=add_dept_url label="إضافة قسم" icon="plus" %}
+    </div>
+
+    <!-- List -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        {% if departments %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+                    <tr>
+                        <th class="px-4 py-3 text-right">الرقم</th>
+                        <th class="px-4 py-3 text-right">الاسم</th>
+                        {% if not branch %}<th class="px-4 py-3 text-right">الفرع</th>{% endif %}
+                        <th class="px-4 py-3 text-right">مركز التكلفة</th>
+                        <th class="px-4 py-3 text-right">المدير</th>
+                        <th class="px-4 py-3 text-right">الحالة</th>
+                        <th class="px-4 py-3 text-right">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for dept in departments %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 font-medium text-slate-900">{{ dept.code }}</td>
+                        <td class="px-4 py-3 text-slate-700">{{ dept.name }}</td>
+                        {% if not branch %}
+                        <td class="px-4 py-3 text-slate-600">{{ dept.branch.name|default:"—" }}</td>
+                        {% endif %}
+                        <td class="px-4 py-3 text-slate-600">{{ dept.cost_center.name|default:"—" }}</td>
+                        <td class="px-4 py-3 text-slate-600">
+                            {% if dept.manager %}{{ dept.manager.user.get_full_name|default:dept.manager.user.username }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if dept.is_active %}
+                            <span class="px-2 py-1 text-xs font-semibold bg-green-100 text-green-700 rounded">نشط</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded">غير نشط</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% url 'web:edit_department' dept.id as act_edit %}
+                            {% include "components/table_actions.html" with edit_url=act_edit edit_title="تعديل القسم" %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <i data-lucide="network" class="w-12 h-12 mx-auto text-slate-300 mb-3"></i>
+            <p class="text-slate-500">لا بيانات</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

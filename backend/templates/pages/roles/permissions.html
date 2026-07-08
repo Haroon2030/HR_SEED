@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}صلاحيات الدور — {{ role.name }}{% endblock %}
+
+{% block content %}
+<div class="hr-user-perms-page w-full max-w-full" dir="rtl">
+
+    {% hr_breadcrumb items=breadcrumb_items %}
+
+    <form method="post"
+          x-data="permsTreeMatrix('{{ default_group_id|escapejs }}')"
+          x-init="initTree()"
+          class="hr-user-perms-form">
+        {% csrf_token %}
+
+        <div class="hr-perm-matrix hr-perm-matrix--compact hr-perm-matrix--erp">
+            <div class="hr-perm-matrix__toolbar">
+                <div class="hr-perm-matrix__toolbar-main min-w-0">
+                    <div class="hr-perm-matrix__title-row">
+                        <span class="hr-perm-matrix__avatar" aria-hidden="true">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h1 class="hr-perm-matrix__title truncate">{{ role.name }}</h1>
+                            <p class="hr-perm-matrix__meta truncate">{{ role.get_role_type_display }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-perm-matrix__toolbar-actions">
+                    {% if not is_admin_role and matrix %}
+                    {% include "components/hr_btn.html" with label="تحديد الكل" type="button" variant="soft-emerald" icon="check" size="sm" x_click="checkAll(true)" %}
+                    {% include "components/hr_btn.html" with label="إلغاء الكل" type="button" variant="soft-slate" icon="x" size="sm" x_click="checkAll(false)" %}
+                    <span class="text-xs text-slate-500"><span x-text="selectedCount()"></span> محددة</span>
+                    {% endif %}
+                    {% url 'web:list_roles' as back_url %}
+                    {% include 'components/glass_back_link.html' with back_url=back_url show_label=True label='رجوع' aria_label='رجوع لقائمة الأدوار' extra_class='hr-perm-matrix__back' %}
+                    {% if not is_admin_role and matrix %}
+                    {% include "components/hr_btn.html" with label="حفظ" type="submit" variant="primary" icon="save" size="sm" extra_class="hr-perm-matrix__save" %}
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if is_admin_role %}
+            <div class="hr-perm-erp-note">دور الأدمن يملك جميع الصلاحيات تلقائياً.</div>
+            {% endif %}
+
+            <div class="hr-perm-tree-layout">
+                {% include "components/perm_tree_sidebar.html" %}
+                <div class="hr-perm-tree-layout__table">
+                    {% include "components/perm_matrix_role.html" %}
+                </div>
+            </div>
+        </div>
+
+        {% if not is_admin_role and matrix %}
+        <div class="hr-user-perms-form__footer">
+            {% url 'web:list_roles' as roles_list_url %}
+            {% include "components/hr_btn.html" with label="إلغاء" href=roles_list_url variant="secondary" size="sm" %}
+            {% include "components/hr_btn.html" with label="حفظ الصلاحيات" type="submit" variant="primary" icon="save" %}
+        </div>
+        {% endif %}
+    </form>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });
+</script>
+{% endblock %}

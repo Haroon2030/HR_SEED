@@ -1,0 +1,59 @@
+{% extends "pages/hr_forms/_print_base.html" %}
+{% block body %}
+
+{% include "pages/hr_forms/_employee_info.html" %}
+
+<div class="section">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;">
+        <div class="field">
+            <span class="label">رقم الإنذار:</span>
+            <span class="serial-no">{{ warning_serial }}</span>
+        </div>
+        <div class="field">
+            <span class="label">التسلسل:</span>
+            <span class="blank" style="border-bottom-style:solid; font-weight:700;">إنذار رقم {{ employee_warning_no }}</span>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+            <span class="label">رقم الإفادة:</span>
+            <input type="text"
+                   class="blank"
+                   placeholder="{{ next_statement_serial }}"
+                   aria-label="رقم الإفادة">
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <h3>تفاصيل المخالفة</h3>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;">
+        <div class="field"><span class="label">تاريخ المخالفة:</span><span class="blank"></span></div>
+        <div class="field"><span class="label">مكان وقوعها:</span><span class="blank"></span></div>
+    </div>
+
+    <div style="margin-top: 14px;">
+        <span class="label" style="font-weight:600; color:#334155;">وصف المخالفة:</span>
+        <div class="blank-block"></div>
+    </div>
+
+    <div style="margin-top: 14px;">
+        <span class="label" style="font-weight:600; color:#334155;">العقوبة / الإجراء المتخذ:</span>
+        <div class="blank-block" style="min-height:50px;"></div>
+    </div>
+</div>
+
+<div class="clause">
+    <strong>تنبيه:</strong>
+    يُعدّ هذا الإشعار جزءاً من ملف الموظف الرسمي لدى إدارة الموارد البشرية،
+    وتكرار المخالفة قد يستوجب اتخاذ إجراءات تأديبية أشد، تصل إلى إنهاء العقد وفقاً لنظام العمل
+    واللائحة الداخلية المعتمدة بالشركة.
+</div>
+
+<div class="clause" style="background:#fef2f2; border-color:#fecaca;">
+    <strong>إقرار الموظف باستلام الإشعار:</strong>
+    أُقرّ أنا الموظف <strong>{{ employee.name }}</strong>
+    بأنني تسلّمت نسخة من هذا الإشعار، واطلعت على مضمونه ومسبباته.
+</div>
+
+{% include "pages/hr_forms/_signatures_standard.html" %}
+
+{% endblock %}

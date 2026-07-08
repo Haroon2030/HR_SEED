@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block page_title %}مسير {% if run.run_kind == 'consolidated' %}جميع الفروع{% else %}{{ run.branch.name }}{% endif %} — {{ run.period_label }}{% endblock %}
+
+{% block content %}
+{% include "pages/payroll/_payroll_table_styles.html" %}
+
+<div class="space-y-4 max-w-7xl mx-auto" dir="rtl"
+     x-data="{
+        auditModalOpen: false,
+        openAuditModal() {
+            this.auditModalOpen = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+        },
+        closeAuditModal() {
+            this.auditModalOpen = false;
+            document.body.classList.remove('overflow-hidden');
+        }
+     }"
+     @keydown.escape.window="if (auditModalOpen) closeAuditModal()">
+
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+            {% url 'web:list_payroll_runs' as back_url %}
+            {% include 'components/glass_back_link.html' with back_url=back_url show_label=True label='رجوع للقائمة' aria_label='رجوع لقائمة المسيرات' %}
+            <h1 class="text-2xl font-bold text-slate-900 mt-1">{% if run.run_kind == 'consolidated' %}جميع الفروع (مسودة موحّدة){% else %}{{ run.branch.name }}{% endif %} — {{ run.period_label }}</h1>
+            <p class="mt-1 flex flex-wrap items-center gap-2">
+                <span class="px-2 py-0.5 text-xs font-bold rounded {% if run.salary_mode == 'cash' %}bg-amber-100 text-amber-800{% else %}bg-sky-100 text-sky-800{% endif %}">{{ run.get_salary_mode_display }}</span>
+                {% if run.sponsorship %}<span class="px-2 py-0.5 text-xs font-bold rounded bg-violet-100 text-violet-800">{{ run.sponsorship.company_name }}</span>{% endif %}
+                {% if run.status == 'draft' %}<span class="px-2 py-0.5 text-xs font-bold rounded bg-amber-100 text-amber-800">مسودة</span>
+                {% elif run.status == 'locked' %}<span class="px-2 py-0.5 text-xs font-bold rounded bg-emerald-100 text-emerald-800">مُرحَّل — {{ run.locked_at|date:"Y-m-d H:i" }}</span>
+                {% else %}<span class="px-2 py-0.5 text-xs font-bold rounded bg-rose-100 text-rose-800">مُلغى</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% url 'web:export_payroll_run_excel' run.id as payroll_export_href %}
+            {% include "components/hr_btn.html" with href=payroll_export_href label="تصدير Excel" variant="glass-emerald" icon="file-spreadsheet" extra_class="text-sm" title="تصدير مسير ملوّن إلى Excel" %}
+            {% if run.status == 'draft' %}
+                <form method="POST" action="{% url 'web:rebuild_payroll_run' run.id %}" class="inline" onsubmit="return confirm('سيتم إعادة بناء المسير. هل تريد المتابعة؟');">
+                    {% csrf_token %}
+                    {% include "components/hr_btn.html" with label="إعادة بناء" type="submit" variant="soft-slate" icon="refresh-cw" %}
+                </form>
+                {% if financial_audit %}
+                {% include "pages/payroll/_payroll_financial_audit_modal.html" with audit_modal_trigger=True %}
+                {% endif %}
+                <form method="POST" action="{% url 'web:lock_payroll_run' run.id %}" class="inline" onsubmit="return confirm('بمجرد الترحيل لن تتمكن من تعديل المسير. هل أنت متأكد؟');">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="hr-btn hr-btn--success"
+                            {% if financial_audit and not financial_audit.ready_to_lock %}disabled title="يوجد أخطاء في تقرير التحقق المالي"{% endif %}>
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                        <span>ترحيل وإغلاق</span>
+                    </button>
+                </form>
+            {% elif run.status == 'locked' and request.user.is_superuser %}
+                <form method="POST" action="{% url 'web:unlock_payroll_run' run.id %}" class="inline" onsubmit="return confirm('سيتم فك ربط البنود من هذا المسير. هل أنت متأكد؟');">
+                    {% csrf_token %}
+                    {% include "components/hr_btn.html" with label="إعادة فتح" type="submit" variant="soft-rose" icon="unlock" %}
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white p-4 rounded-xl border border-slate-200">
+            <p class="text-xs font-semibold text-slate-500">عدد الموظفين</p>
+            <p class="text-2xl font-bold text-slate-900 mt-1">{{ run.employees_count }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-emerald-200">
+            <p class="text-xs font-semibold text-emerald-700">إجمالي الاستحقاقات</p>
+            <p class="mt-1">{{ run.total_earnings|format_sar:"earn" }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-rose-200">
+            <p class="text-xs font-semibold text-rose-700">إجمالي الخصومات</p>
+            <p class="mt-1">{{ run.total_deductions|format_sar:"deduct" }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-primary-200">
+            <p class="text-xs font-semibold text-primary-700">صافي المسير</p>
+            <p class="mt-1">{{ run.total_net|format_sar:"net" }}</p>
+        </div>
+    </div>
+
+    <div class="payroll-lines-card">
+        <div class="payroll-lines-hd">
+            <h3>
+                <i data-lucide="users" class="w-4 h-4 inline-block ml-1"></i>
+                أسطر المسير ({{ lines_total }})
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="payroll-tbl">
+                <thead>
+                    <tr>
+                        <th class="text-right">الموظف</th>
+                        <th class="col-num">الإجمالي</th>
+                        <th class="col-num th-deduct">غياب</th>
+                        <th class="text-right">الفرع</th>
+                        <th class="col-num th-deduct">قسط سلفة</th>
+                        <th class="col-num th-deduct">مخالفات</th>
+                        <th class="col-num th-deduct">تأمينات</th>
+                        <th class="col-num th-earn">استحقاقات</th>
+                        <th class="col-num th-deduct">إجمالي خصومات</th>
+                        <th class="col-num">نقدي</th>
+                        <th class="col-num">بنكي</th>
+                        <th class="col-num th-net">الصافي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in lines %}
+                    <tr>
+                        <td class="font-bold text-slate-900">
+                            <a href="{% url 'web:view_employee' line.employee.id %}" class="text-primary-700 hover:underline">{{ line.employee.name }}</a>
+                        </td>
+                        <td class="col-num">{{ line.gross_salary|format_sar:"gross" }}</td>
+                        <td class="col-num td-deduct">
+                            {% if line.absence_deduction %}
+                            {{ line.absence_deduction|format_sar:"deduct" }}
+                            <span class="pay-days">{{ line.absence_days }} يوم</span>
+                            {% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}
+                        </td>
+                        <td class="text-slate-700 text-sm">
+                            {% if line.employee.branch_id %}{{ line.employee.branch.name }}{% else %}{{ run.branch.name }}{% endif %}
+                        </td>
+                        <td class="col-num td-deduct">
+                            {% if line.loan_deduction %}{{ line.loan_deduction|format_sar:"deduct" }}{% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}
+                        </td>
+                        <td class="col-num td-deduct">
+                            {% if line.penalty_deduction %}{{ line.penalty_deduction|format_sar:"deduct" }}{% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}
+                        </td>
+                        <td class="col-num td-deduct">
+                            {% if line.insurance_deduction %}{{ line.insurance_deduction|format_sar:"deduct" }}{% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}
+                        </td>
+                        <td class="col-num td-earn">{{ line.total_earnings|format_sar:"earn" }}</td>
+                        <td class="col-num td-deduct">{{ line.total_deductions|format_sar:"deduct" }}</td>
+                        <td class="col-num">{% if line.net_cash_amount %}{{ line.net_cash_amount|format_sar:"neutral" }}{% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}</td>
+                        <td class="col-num">{% if line.net_bank_transfer %}{{ line.net_bank_transfer|format_sar:"neutral" }}{% else %}<span class="pay-money pay-money--empty">—</span>{% endif %}</td>
+                        <td class="col-num td-net">{{ line.net_salary|format_sar:"net" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12" class="py-10 text-center font-semibold text-slate-500">لا بيانات</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if lines %}
+                <tfoot>
+                    <tr>
+                        <td class="text-right font-bold text-slate-900">الإجمالي</td>
+                        <td class="col-num"></td>
+                        <td class="col-num td-deduct" colspan="5"></td>
+                        <td class="col-num td-earn">{{ run.total_earnings|format_sar:"earn" }}</td>
+                        <td class="col-num td-deduct">{{ run.total_deductions|format_sar:"deduct" }}</td>
+                        <td class="col-num" colspan="2"></td>
+                        <td class="col-num td-net">{{ run.total_net|format_sar:"net" }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+        {% if page_obj and page_obj.paginator.num_pages > 1 %}
+        <div class="px-4 py-3 border-t border-slate-100 hr-pagination hr-pagination--bar">
+            <div class="hr-pagination__summary">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</div>
+            {% include "components/hr_pagination.html" with page_obj=page_obj controls_only=True show_numbers=False %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if financial_audit %}
+    {% include "pages/payroll/_payroll_financial_audit_modal.html" with audit_modal_body=True %}
+    {% endif %}
+</div>
+{% endblock %}

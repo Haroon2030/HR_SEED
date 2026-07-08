@@ -1,0 +1,23 @@
+{% extends "pages/list_base.html" %}
+
+{% block page_title %}شاشة الموظفين{% endblock %}
+
+{% block list_actions %}
+<form method="get"
+      action="{% url 'web:list_employees' %}"
+      class="flex items-center gap-2 w-full sm:w-auto">
+    {% include "components/search_field.html" with name="q" value=query placeholder="بحث ذكي: اسم، هوية، جوال، فرع، قسم، جنسية، مهنة..." extra_class="flex-1 sm:w-80" aria_label="بحث الموظفين" %}
+    {% include "components/hr_btn.html" with label="بحث" type="submit" variant="primary" icon="search" %}
+    {% if query %}
+    {% url 'web:list_employees' as clear_url %}
+    {% include "components/hr_btn.html" with href=clear_url label="" icon="x" variant="ghost" title="مسح البحث" extra_class="px-3" %}
+    {% endif %}
+</form>
+{% endblock %}
+
+{% block table_headers %}{% endblock %}
+{% block table_body %}{% endblock %}
+
+{% block list_content %}
+{% include "pages/employees/_list_panel.html" %}
+{% endblock %}

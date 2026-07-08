@@ -1,0 +1,34 @@
+{% extends "pages/hr_forms/_print_base.html" %}
+
+{% block body %}
+{% include "pages/hr_forms/_bank_salutation.html" with bank_select_id="hr-salary-cert-bank" %}
+
+<div class="section" style="margin-top: 8px;">
+    <p style="font-size: 14.5px; margin: 0 0 20px;">السلام عليكم ورحمة الله وبركاته،</p>
+
+    <div class="clause" style="font-size: 14.5px; line-height: 2.15; text-align: justify;">
+        نفيدكم نحن
+        <strong>{{ letterhead_name|default:"........................" }}</strong>
+        بأن الموظف/
+        <strong>{% include "pages/hr_forms/_pen_field.html" with field_label="اسم الموظف" extra_class="hr-form-inline-pen" %}</strong>،
+        <strong>{% include "pages/hr_forms/_pen_field.html" with field_label="الجنسية" extra_class="hr-form-inline-pen" %}</strong>
+        الجنسية، بموجب هوية رقم
+        (<strong>{% include "pages/hr_forms/_pen_field.html" with field_label="رقم الهوية" extra_class="hr-form-inline-pen" ltr=True %}</strong>)،
+        يعمل لدينا بوظيفة
+        <strong>{% include "pages/hr_forms/_pen_field.html" with field_label="مسمى الوظيفة" extra_class="hr-form-inline-pen" %}</strong>
+        وتاريخ تعيينه هو
+        <strong>{% include "pages/hr_forms/_pen_field.html" with field_label="تاريخ التعيين" placeholder="..../..../........" extra_class="hr-form-inline-pen" %}</strong>
+        وما زال على رأس العمل،
+        وأُعطي هذا الخطاب بناءً على طلبه دون أدنى مسؤولية على الشركة.
+    </div>
+
+    <div class="section" style="margin-top: 26px;">
+        <h3 style="margin-bottom: 12px;">تفاصيل الراتب</h3>
+        {% include "pages/hr_forms/_salary_table_blank.html" %}
+    </div>
+</div>
+
+<div class="salary-cert-stamp sig-box" style="margin-top: 112px; margin-right: auto; margin-left: 0; max-width: 220px; text-align: center;">
+    <div class="line" style="min-width: 150px; padding-top: 8px;">الختم</div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% comment %}
+Partial: render a Django form field with label/errors/help.
+Tailwind classes are applied via widget.attrs in EmploymentRequestEditForm.__init__.
+Usage: include "pages/employment_requests/_field.html" with field=form.field_name
+{% endcomment %}
+{% if field %}
+<div class="hr-form-field">
+    <label class="block text-xs font-bold text-slate-800" for="{{ field.id_for_label }}">
+        {{ field.label }}{% if field.field.required %} <span class="hr-required-mark text-red-500">*</span>{% endif %}
+    </label>
+    {{ field }}
+    {% for err in field.errors %}
+        <p class="text-xs text-red-600">{{ err }}</p>
+    {% endfor %}
+</div>
+{% endif %}

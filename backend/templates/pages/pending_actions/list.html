@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block page_title %}طلبات العمليات المعلّقة{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">طلبات العمليات السريعة</h1>
+            <p class="text-slate-500 text-xs">دورة الموافقات: {{ first_stage_tab_label|default:"موافقة أولى" }} → المدير العام → موظف الموارد</p>
+        </div>
+    </div>
+
+    {% include "components/operations_tabs.html" %}
+
+    {% include "components/page_tabs_start.html" with aria_label="تصفية طلبات العمليات" %}
+        <a href="?tab=inbox" role="tab" class="hr-tab-btn{% if tab == 'inbox' %} is-active{% endif %}">
+            <i data-lucide="inbox" class="w-4 h-4"></i>
+            <span>بانتظار إجرائي</span>
+            {% if counts.inbox %}<span class="hr-tab-badge">{{ counts.inbox }}</span>{% endif %}
+        </a>
+        <a href="?tab=pending_branch" role="tab" class="hr-tab-btn hr-tab-btn--amber{% if tab == 'pending_branch' %} is-active{% endif %}">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span>{{ first_stage_tab_label|default:"موافقة أولى" }}</span>
+            {% if counts.pending_branch %}<span class="hr-tab-badge">{{ counts.pending_branch }}</span>{% endif %}
+        </a>
+        <a href="?tab=pending_gm" role="tab" class="hr-tab-btn hr-tab-btn--indigo{% if tab == 'pending_gm' %} is-active{% endif %}">
+            <i data-lucide="user-cog" class="w-4 h-4"></i>
+            <span>المدير العام</span>
+            {% if counts.pending_gm %}<span class="hr-tab-badge">{{ counts.pending_gm }}</span>{% endif %}
+        </a>
+        <a href="?tab=pending_officer" role="tab" class="hr-tab-btn hr-tab-btn--purple{% if tab == 'pending_officer' %} is-active{% endif %}">
+            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+            <span>موظف الموارد</span>
+            {% if counts.pending_officer %}<span class="hr-tab-badge">{{ counts.pending_officer }}</span>{% endif %}
+        </a>
+        <a href="?tab=returned" role="tab" class="hr-tab-btn hr-tab-btn--rose{% if tab == 'returned' %} is-active{% endif %}">
+            <i data-lucide="undo-2" class="w-4 h-4"></i>
+            <span>مُرتجَعة</span>
+            {% if counts.returned %}<span class="hr-tab-badge">{{ counts.returned }}</span>{% endif %}
+        </a>
+        <a href="?tab=approved" role="tab" class="hr-tab-btn hr-tab-btn--emerald{% if tab == 'approved' %} is-active{% endif %}">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>مكتملة</span>
+        </a>
+        <a href="?tab=mine" role="tab" class="hr-tab-btn hr-tab-btn--slate{% if tab == 'mine' %} is-active{% endif %}">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span>طلباتي</span>
+            {% if counts.mine %}<span class="hr-tab-badge">{{ counts.mine }}</span>{% endif %}
+        </a>
+    {% include "components/page_tabs_nav_end.html" %}
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <!-- شريط البحث -->
+        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="text-xs text-slate-600">
+                <span class="font-bold text-slate-800">{{ total_rows }}</span> نتيجة في هذا التبويب{% if query %} للبحث "<span class="text-primary-600 font-semibold">{{ query }}</span>"{% endif %}
+            </div>
+            <form method="get" class="flex items-center gap-2 w-full sm:w-auto">
+                <input type="hidden" name="tab" value="{{ tab }}">
+                {% include "components/search_field.html" with name="q" value=query placeholder="ابحث عن موظف، فرع، نوع، حالة..." extra_class="flex-1 sm:w-72" aria_label="بحث الطلبات" %}
+                {% include "components/hr_btn.html" with label="بحث" type="submit" variant="primary" icon="search" %}
+                {% if query %}
+                {% with clear_href="?tab="|add:tab %}
+                {% include "components/hr_btn.html" with href=clear_href label="" icon="x" variant="ghost" title="مسح" extra_class="px-3" %}
+                {% endwith %}
+                {% endif %}
+            </form>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">#</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">نوع العملية</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">الموظف</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">الفرع</th>
+                        <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase hr-col-approval-stage whitespace-nowrap">الحالة الحالية</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">مقدّم الطلب</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">آخر تحديث</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">إجراء</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for a in actions %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{{ a.id }}</td>
+                        <td class="px-3 py-2 text-xs whitespace-nowrap">
+                            {% if a.action_type == 'hire' %}<span class="px-2 py-1 rounded bg-teal-100 text-teal-700 font-semibold">توظيف جديد</span>
+                            {% elif a.action_type == 'leave' %}<span class="px-2 py-1 rounded bg-blue-100 text-blue-700 font-semibold">إجازة</span>
+                            {% elif a.action_type == 'transfer' %}<span class="px-2 py-1 rounded bg-purple-100 text-purple-700 font-semibold">نقل</span>
+                            {% elif a.action_type == 'salary_adjust' %}<span class="px-2 py-1 rounded bg-amber-100 text-amber-700 font-semibold">تعديل راتب</span>
+                            {% elif a.action_type == 'terminate' %}<span class="px-2 py-1 rounded bg-red-100 text-red-700 font-semibold">إنهاء خدمة</span>
+                            {% elif a.action_type == 'reactivate' %}<span class="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">إعادة تفعيل</span>
+                            {% elif a.action_type == 'cash_shortage' %}<span class="px-2 py-1 rounded bg-rose-100 text-rose-700 font-semibold">عجز كاشير</span>
+                            {% else %}<span class="px-2 py-1 rounded bg-slate-100 text-slate-700">{{ a.action_type_display }}</span>{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-xs font-medium text-slate-900 whitespace-nowrap">{{ a.employee_name|default:"-" }}</td>
+                        <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ a.branch_name|default:"-" }}</td>
+                        <td class="px-3 py-2 text-xs hr-col-approval-stage whitespace-nowrap">
+                            {% include "components/approval_workflow_track.html" with track=a first_stage_label=a.first_stage_label gm_label="المدير العام" officer_label="موظف الموارد" %}
+                            {% if a.resubmit_count %}<span class="text-xs text-slate-400 ms-2">إعادة إرسال #{{ a.resubmit_count }}</span>{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ a.requested_by_name }}</td>
+                        <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ a.updated_at|date:"Y-m-d H:i" }}</td>
+                        <td class="px-3 py-2 text-left whitespace-nowrap">
+                            {% include "components/table_actions.html" with view_url=a.detail_url view_title="فتح الطلب" delete_url=a.delete_url delete_confirm=a.delete_confirm delete_title="حذف الطلب" %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-3 py-12 text-center text-sm text-slate-400">
+                            <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                            <p>لا بيانات</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj and page_obj.paginator.num_pages > 1 %}
+        <div class="px-4 py-3 border-t border-slate-100 bg-slate-50 hr-pagination hr-pagination--bar">
+            <div class="hr-pagination__summary">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }} • الإجمالي {{ total_rows }}</div>
+            {% if query %}
+            {% include "components/hr_pagination.html" with page_obj=page_obj controls_only=True base_qs="tab="|add:tab|add:"&q="|add:query %}
+            {% else %}
+            {% include "components/hr_pagination.html" with page_obj=page_obj controls_only=True base_qs="tab="|add:tab %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); });
+</script>
+{% endblock %}

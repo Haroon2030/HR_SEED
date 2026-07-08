@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}سجلات الحضور — البصمة{% endblock %}
+
+{% block content %}
+{% include "pages/attendance/_biometric_page_styles.html" %}
+<div class="zk-rec space-y-3" dir="rtl">
+
+    <div class="zk-rec-top">
+        <div>
+            <nav class="zk-rec-crumb">
+                <a href="{% url 'web:biometric_devices' %}">أجهزة البصمة</a>
+                <i data-lucide="chevron-left" class="w-3 h-3"></i>
+                <span>سجلات</span>
+            </nav>
+            <h1>سجلات الحضور</h1>
+            {% if filter_employee %}
+            <p class="text-sm font-bold text-primary-900 m-0 mt-1">
+                الموظف: {{ filter_employee.name }}
+                {% if employee_enrollments %}
+                — مربوط على:
+                {% for en in employee_enrollments %}
+                <span class="inline-flex gap-1">{{ en.device.name }} (مستخدم {{ en.device_user_id }}{% if en.device_user_name %} · {{ en.device_user_name }}{% endif %})</span>{% if not forloop.last %}، {% endif %}
+                {% endfor %}
+                {% else %}
+                <span class="text-amber-800">— غير مربوط بجهاز</span>
+                {% endif %}
+            </p>
+            {% endif %}
+            <p class="zk-rec-period m-0 mt-0.5">
+                {% if filters.date_from or filters.date_to %}{{ filters.date_from|default:"*" }} → {{ filters.date_to|default:"*" }}{% else %}ALL · {{ stats.total|default:0 }} rows{% endif %}
+            </p>
+        </div>
+        <div class="zk-rec-actions">
+            {% url 'web:attendance_report' as report_url %}
+            {% with report_href=report_url|add:"?"|add:querystring %}
+            {% if querystring %}
+            {% include "components/hr_btn.html" with href=report_href label="تقرير" variant="soft-primary" icon="bar-chart-2" %}
+            {% else %}
+            {% include "components/hr_btn.html" with href=report_url label="تقرير" variant="soft-primary" icon="bar-chart-2" %}
+            {% endif %}
+            {% endwith %}
+            {% url 'web:attendance_records_export' as export_url %}
+            {% with export_href=export_url|add:"?"|add:querystring %}
+            {% include "components/hr_btn.html" with href=export_href label="Excel" variant="success" icon="file-spreadsheet" %}
+            {% endwith %}
+            {% url 'web:biometric_devices' as devices_url %}
+            {% include "components/hr_btn.html" with href=devices_url label="أجهزة" variant="soft-slate" icon="settings" %}
+        </div>
+    </div>
+
+    <div class="zk-rec-toolbar-row">
+    {% if user|has_permission:'attendance.manage' %}
+    <section class="zk-rec-sync-wrap">
+        <div class="zk-rec-panel zk-rec-panel--sync">
+            <div class="zk-rec-panel-hd">
+                <div class="title-wrap">
+                    <span class="zk-rec-code">SYNC</span>
+                    <h2>سحب من جهاز البصمة</h2>
+                </div>
+                <span class="zk-rec-hint">LAN</span>
+            </div>
+            <div class="zk-rec-panel-body">
+            <form id="attendance-pull-form" method="post" action="{% url 'web:attendance_records_pull' %}" class="zk-rec-sync-form">
+                {% csrf_token %}
+                <div class="zk-rec-sync-grid">
+                    <div class="fld fld--device">
+                        <label class="zk-bio-lbl">الجهاز</label>
+                        <select name="device_id" required class="zk-bio-field">
+                            {% for d in devices %}
+                            <option value="{{ d.pk }}" dir="ltr"{% if sync_device_id == d.pk %} selected{% endif %}>{{ d.name }} · {{ d.ip_address }}:{{ d.port }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fld">
+                        <label class="zk-bio-lbl">من</label>
+                        <input type="date" name="date_from" class="zk-bio-field">
+                    </div>
+                    <div class="fld">
+                        <label class="zk-bio-lbl">إلى</label>
+                        <input type="date" name="date_to" class="zk-bio-field">
+                    </div>
+                    <div class="fld fld--action">
+                        <label class="zk-bio-lbl">&nbsp;</label>
+                        <button type="submit" id="attendance-pull-submit" class="hr-btn hr-btn--primary hr-btn--xs zk-rec-btn-pull">
+                            <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                            سحب
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div id="attendance-pull-progress" class="zk-pull-progress-wrap" aria-live="polite">
+                <div class="zk-pull-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="attendance-pull-track">
+                    <div id="attendance-pull-fill" class="zk-pull-fill"></div>
+                </div>
+                <p id="attendance-pull-status" class="zk-pull-status">0%</p>
+            </div>
+            {% if stats.status_health.skewed %}
+            <div class="zk-rec-skew-bar">
+                <span class="zk-rec-skew-msg zk-mono">St≠ · 0={{ stats.status_health.status_0 }} · 1={{ stats.status_health.status_1 }}</span>
+                <form method="post" action="{% url 'web:attendance_records_reclassify' %}" class="zk-rec-skew-actions">
+                    {% csrf_token %}
+                    <select name="device_id" class="zk-bio-field zk-rec-skew-device" aria-label="جهاز">
+                        <option value="">الكل</option>
+                        {% for d in devices %}
+                        <option value="{{ d.pk }}" {% if filters.device_id == d.pk %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="hr-btn hr-btn--soft-emerald hr-btn--xs zk-rec-skew-btn" title="ترتيب دخول/خروج"
+                            onclick="return confirm('ترتيب دخول/خروج حسب تسلسل اليوم؟');">
+                        <i data-lucide="arrow-down-up" class="w-3.5 h-3.5"></i>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <aside class="zk-rec-stats-wrap">
+        <div class="zk-rec-panel zk-rec-panel--stats">
+            <div class="zk-rec-panel-hd">
+                <div class="title-wrap">
+                    <span class="zk-rec-code">STAT</span>
+                    <h2>ملخص السجلات</h2>
+                </div>
+            </div>
+            <div class="zk-rec-panel-body">
+            <div class="zk-rec-stats-grid">
+                <a href="{% url 'web:attendance_records' %}?{{ qs_punch_all }}"
+                   class="zk-rec-kpi zk-rec-kpi--link{% if not filters.punch_type %} is-active{% endif %}">
+                    <p class="k">الكل</p>
+                    <p class="v">{{ stats.total|default:0 }}</p>
+                </a>
+                <a href="{% url 'web:attendance_records' %}?{{ qs_punch_in }}"
+                   class="zk-rec-kpi zk-rec-kpi--link{% if filters.punch_type == 'in' %} is-active{% endif %}">
+                    <p class="k">دخول</p>
+                    <p class="v text-emerald-700">{{ stats.check_in|default:0 }}</p>
+                </a>
+                <a href="{% url 'web:attendance_records' %}?{{ qs_punch_out }}"
+                   class="zk-rec-kpi zk-rec-kpi--link{% if filters.punch_type == 'out' %} is-active{% endif %}">
+                    <p class="k">خروج</p>
+                    <p class="v text-indigo-700">{{ stats.check_out|default:0 }}</p>
+                </a>
+                <div class="zk-rec-kpi">
+                    <p class="k">غير مربوط</p>
+                    <p class="v text-amber-700">{{ stats.unmapped|default:0 }}</p>
+                </div>
+            </div>
+            </div>
+        </div>
+    </aside>
+
+    <aside class="zk-rec-filter-wrap">
+        <div class="zk-rec-panel zk-rec-panel--filter">
+            <div class="zk-rec-panel-hd">
+                <div class="title-wrap">
+                    <span class="zk-rec-code">LOG</span>
+                    <h2>فلتر السجلات</h2>
+                </div>
+                <span class="zk-bio-stat zk-mono">{{ page_obj.start_index }}–{{ page_obj.end_index }}{% if page_obj.paginator.count %}/{{ page_obj.paginator.count }}{% endif %}</span>
+            </div>
+            <div class="zk-rec-panel-body">
+            <form method="get" class="zk-rec-filter-form">
+                {% if filters.device_user_id %}<input type="hidden" name="device_user" value="{{ filters.device_user_id }}">{% endif %}
+                <div class="zk-rec-filter-grid">
+                    <div class="fld">
+                        <label class="zk-bio-lbl">من</label>
+                        <input type="date" name="from" value="{{ filters.date_from|default:'' }}" class="zk-bio-field">
+                    </div>
+                    <div class="fld">
+                        <label class="zk-bio-lbl">إلى</label>
+                        <input type="date" name="to" value="{{ filters.date_to|default:'' }}" class="zk-bio-field">
+                    </div>
+                    <div class="fld fld--full">
+                        <label class="zk-bio-lbl">الفرع</label>
+                        {% include "components/filter_multiselect.html" with name="branch" items=branches selected_ids=filters.branch_ids field_class="zk-bio-field" aria_label="الفرع" %}
+                    </div>
+                    <div class="fld fld--full">
+                        <label class="zk-bio-lbl">جهاز</label>
+                        <select name="device" class="hr-filter-select zk-bio-field">
+                            <option value="">الكل</option>
+                            {% for d in devices %}
+                            <option value="{{ d.pk }}" {% if filters.device_id == d.pk %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fld fld--full">
+                        {% include "components/employee_search_picker.html" with label="موظف محدد" input_name="employee" filter_employee=filter_employee employee_search_url=employee_search_url %}
+                    </div>
+                    <div class="fld fld--full">
+                        <label class="zk-bio-lbl">بحث</label>
+                        <input type="text" name="q" value="{{ filters.search }}" placeholder="اسم أو رقم" class="zk-bio-field" autocomplete="off">
+                    </div>
+                    {% if filters.punch_type %}<input type="hidden" name="punch_type" value="{{ filters.punch_type }}">{% endif %}
+                    <div class="fld fld--actions fld--full hr-filter-form">
+                        {% url 'web:attendance_records' as records_clear_url %}
+                        {% include "components/filter_actions.html" with clear_url=records_clear_url %}
+                    </div>
+                </div>
+            </form>
+            {% if user|has_permission:'attendance.manage' %}
+            <form id="zk-rec-reclassify-form" method="post" action="{% url 'web:attendance_records_reclassify' %}" class="zk-rec-reclassify-form">
+                {% csrf_token %}
+                <input type="hidden" name="device_id" id="zk-rec-reclassify-device" value="{{ filters.device_id|default:'' }}">
+                    <button type="submit" class="hr-btn hr-btn--soft-emerald hr-btn--xs zk-rec-reclassify-btn"
+                        onclick="return confirm('ترتيب دخول/خروج حسب تسلسل اليوم لكل موظف؟');">
+                    <i data-lucide="arrow-down-up" class="w-3.5 h-3.5"></i>
+                    ترتيب دخول/خروج
+                </button>
+            </form>
+            {% endif %}
+            </div>
+        </div>
+    </aside>
+    </div>
+
+    <section class="zk-rec-box zk-rec-box--table">
+        <div class="zk-bio-card-hd">
+            <div class="flex items-center gap-2">
+                <span class="zk-rec-code">TBL</span>
+                <h2 class="text-sm font-bold text-slate-800 m-0">جدول البصمات</h2>
+            </div>
+            <span class="zk-bio-stat zk-mono">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }}{% else %}{{ page_obj.end_index }}+{% endif %} سجل</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="zk-bio-tbl">
+                <thead>
+                    <tr>
+                        <th class="text-center w-10">#</th>
+                        <th>التاريخ</th>
+                        <th>الوقت</th>
+                        <th>معرف ZK</th>
+                        <th dir="ltr">رقم المستخدم</th>
+                        <th>الاسم على الجهاز</th>
+                        <th>موظف HR</th>
+                        <th dir="ltr">الرقم الوظيفي</th>
+                        <th>نوع الحركة</th>
+                        <th class="text-center" title="حالة الجهاز الخام">St</th>
+                        <th>التحقق</th>
+                        <th class="text-center" title="رمز التحقق">Vm</th>
+                        <th>الجهاز</th>
+                        <th dir="ltr">IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in page_obj %}
+                    <tr class="{% if not p.employee_id %}zk-row-warn{% endif %}">
+                        <td class="text-center text-slate-400 zk-mono">{{ page_obj.start_index|add:forloop.counter0 }}</td>
+                        <td class="zk-mono">{{ p.local_punched_at|date:"Y-m-d" }}</td>
+                        <td class="zk-mono">{{ p.local_punched_at|date:"H:i:s" }}</td>
+                        <td class="zk-mono text-slate-500">{{ p.device_record_uid|default:"—" }}</td>
+                        <td class="zk-mono" dir="ltr">{{ p.device_user_id }}</td>
+                        <td>{{ p.device_user_name|default:"—" }}</td>
+                        <td>{% if p.employee %}<span class="text-emerald-800 font-semibold">{{ p.employee.name }}</span>{% else %}<span class="zk-pill zk-pill-warn">غير مربوط</span>{% endif %}</td>
+                        <td class="zk-mono text-xs" dir="ltr">{{ p.employee.employee_number|default:"—" }}</td>
+                        <td>{% if p.punch_type == 'in' %}<span class="zk-pill zk-pill-in">دخول</span>{% elif p.punch_type == 'out' %}<span class="zk-pill zk-pill-out">خروج</span>{% else %}<span class="zk-pill zk-pill-muted">{{ p.get_punch_type_display }}</span>{% endif %}</td>
+                        <td class="text-center zk-mono text-slate-500">{{ p.raw_status|default:"—" }}</td>
+                        <td class="text-xs">{{ p.verify_mode_label|default:"—" }}</td>
+                        <td class="text-center zk-mono text-slate-500">{{ p.verify_mode|default:"—" }}</td>
+                        <td>{{ p.device.name }}</td>
+                        <td class="zk-mono" dir="ltr">{{ p.device.ip_address }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="14" class="px-4 py-10 text-center text-slate-500 text-sm">لا سجلات — نفّذ السحب من الجهاز أو غيّر الفلتر</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="px-4 py-2.5 border-t border-slate-100 hr-pagination flex flex-wrap justify-center">
+            {% include "components/hr_keyset_pagination.html" with page_obj=page_obj base_qs=querystring prev_label="السابق" next_label="التالي" %}
+        </div>
+        {% endif %}
+
+        <p class="zk-rec-legend m-0">
+            نفس أعمدة التصدير: معرف ZK · St (0=دخول / 1=خروج على الجهاز) · Vm رمز التحقق
+        </p>
+    </section>
+</div>
+<script>
+(function () {
+    var form = document.getElementById('attendance-pull-form');
+    if (!form) return;
+    var wrap = document.getElementById('attendance-pull-progress');
+    var fill = document.getElementById('attendance-pull-fill');
+    var track = document.getElementById('attendance-pull-track');
+    var statusEl = document.getElementById('attendance-pull-status');
+    var btn = document.getElementById('attendance-pull-submit');
+    var tick = null;
+    var currentPct = 0;
+
+    function setBar(pct) {
+        currentPct = Math.max(0, Math.min(100, pct));
+        fill.style.width = currentPct + '%';
+        if (track) track.setAttribute('aria-valuenow', String(Math.round(currentPct)));
+    }
+
+    function setStatus(text) {
+        statusEl.textContent = text;
+    }
+
+    function startProgressTick() {
+        if (tick) clearInterval(tick);
+        var start = Date.now();
+        tick = setInterval(function () {
+            var elapsed = (Date.now() - start) / 1000;
+            var target = 12 + Math.min(78, elapsed * 9);
+            if (currentPct < target) {
+                setBar(currentPct + Math.min(4, target - currentPct));
+            }
+            setStatus(Math.round(currentPct) + '% · pulling…');
+        }, 320);
+    }
+
+    function stopProgressTick() {
+        if (tick) { clearInterval(tick); tick = null; }
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (btn && btn.disabled) return;
+        stopProgressTick();
+        wrap.classList.add('zk-pull-active');
+        setBar(3);
+        statusEl.style.whiteSpace = 'nowrap';
+        setStatus('3% · connecting…');
+        if (btn) btn.disabled = true;
+        startProgressTick();
+
+        var fd = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(function (res) {
+                return res.text().then(function (text) {
+                    var data = null;
+                    try { data = JSON.parse(text); } catch (e) {}
+                    return { res: res, data: data };
+                });
+            })
+            .then(function (_ref) {
+                var data = _ref.data;
+                stopProgressTick();
+                if (!data) {
+                    setBar(100);
+                    setStatus('100% · reload…');
+                    setTimeout(function () { location.reload(); }, 1200);
+                    return;
+                }
+                if (data.ok !== true) {
+                    setBar(100);
+                    setStatus('100% · ' + (data.error || 'failed'));
+                    if (btn) btn.disabled = false;
+                    setTimeout(function () {
+                        wrap.classList.remove('zk-pull-active');
+                        setBar(0);
+                    }, 5000);
+                    return;
+                }
+                setBar(100);
+                setStatus('100% · ' + (data.message || (data.queued ? 'queued' : 'done')));
+                statusEl.style.whiteSpace = 'normal';
+                setTimeout(function () {
+                    window.location.reload();
+                }, data.queued ? 2200 : 1800);
+            })
+            .catch(function () {
+                stopProgressTick();
+                setBar(100);
+                setStatus('100% · network error');
+                if (btn) btn.disabled = false;
+                setTimeout(function () {
+                    wrap.classList.remove('zk-pull-active');
+                    setBar(0);
+                }, 5000);
+            });
+    });
+})();
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    var reclassifyForm = document.getElementById('zk-rec-reclassify-form');
+    if (reclassifyForm) {
+        reclassifyForm.addEventListener('submit', function () {
+            var deviceSel = document.querySelector('.zk-rec-filter-form select[name="device"]');
+            var deviceHid = document.getElementById('zk-rec-reclassify-device');
+            if (deviceSel && deviceHid) deviceHid.value = deviceSel.value || '';
+        });
+    }
+});
+</script>
+{% endblock %}

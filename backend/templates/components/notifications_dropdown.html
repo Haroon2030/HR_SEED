@@ -1,0 +1,107 @@
+{% comment %}
+  dropdown_uid: topbar (الشريط العلوي — جميع الأحجام)
+{% endcomment %}
+{% with uid=dropdown_uid|default:"topbar" %}
+<div class="relative hr-notif-dropdown hr-notif-dropdown--{{ uid }}"
+     x-data="{ open: false }"
+     :class="{ 'is-open': open }"
+     @keydown.escape.window="open = false"
+     @hr-notif-close.window="open = false"
+     x-effect="document.body.classList.toggle('hr-notif-open-lock', open && window.matchMedia('(max-width: 767px)').matches)">
+    <button type="button"
+            @click.stop="
+                open = !open;
+                if (open) {
+                    $nextTick(() => {
+                        var mobile = window.matchMedia('(max-width: 767px)').matches;
+                        var panel = mobile
+                            ? ($refs.panelMobile || document.querySelector('.hr-notif-panel--mobile'))
+                            : ($refs.panelDesktop || document.querySelector('.hr-topbar-notif-panel'));
+                        if (panel && typeof htmx !== 'undefined') {
+                            htmx.trigger(panel, 'notif-open');
+                        }
+                    });
+                }
+            "
+            class="hr-topbar-icon-btn"
+            :aria-expanded="open ? 'true' : 'false'"
+            title="الإشعارات"
+            aria-label="الإشعارات{% if unread_notifications_count %} — {{ unread_notifications_count }} غير مقروء{% endif %}">
+        <i data-lucide="bell" class="w-5 h-5" aria-hidden="true"></i>
+        {% if unread_notifications_count %}
+        <span class="hr-topbar-icon-btn__badge" aria-hidden="true">{% if unread_notifications_count > 99 %}99+{% else %}{{ unread_notifications_count }}{% endif %}</span>
+        {% endif %}
+    </button>
+
+    <div x-show="open"
+         x-cloak
+         x-ref="panelDesktop"
+         @click.outside="open = false"
+         @click.stop
+         dir="rtl"
+         class="hr-notif-panel hr-topbar-notif-panel hr-topbar-light-panel absolute left-0 top-full mt-2 z-50 w-80 max-w-full rounded-xl border overflow-hidden shadow-2xl"
+         role="dialog"
+         aria-label="قائمة الإشعارات"
+         hx-get="{% url 'web:notifications_dropdown' %}"
+         hx-trigger="notif-open once"
+         hx-target="this"
+         hx-swap="innerHTML">
+        <div class="hr-notif-dropdown-panel__placeholder">
+            <div class="hr-topbar-light-panel__head flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200">
+                <span class="text-sm font-bold text-slate-900">الإشعارات</span>
+                <button type="button"
+                        class="hr-topbar-light-panel__close shrink-0"
+                        onclick="window.dispatchEvent(new CustomEvent('hr-notif-close'))"
+                        title="إغلاق"
+                        aria-label="إغلاق">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="flex flex-col items-center justify-center gap-2 py-6">
+            <span class="hr-notif-dropdown-panel__spinner" aria-hidden="true"></span>
+            <span>جاري تحميل الإشعارات…</span>
+            </div>
+        </div>
+    </div>
+
+    <template x-teleport="body">
+        <div x-show="open"
+             x-cloak
+             @click="open = false"
+             class="hr-notif-backdrop hr-notif-backdrop--topbar-portal md:hidden"
+             aria-hidden="true"></div>
+    </template>
+    <template x-teleport="body">
+        <div x-show="open"
+             x-cloak
+             x-ref="panelMobile"
+             @click.outside="open = false"
+             @click.stop
+             dir="rtl"
+             class="hr-notif-panel hr-notif-panel--mobile hr-notif-dropdown-panel hr-notif-dropdown-panel--topbar hr-topbar-light-panel md:hidden"
+             role="dialog"
+             aria-label="قائمة الإشعارات"
+             hx-get="{% url 'web:notifications_dropdown' %}"
+             hx-trigger="notif-open once"
+             hx-target="this"
+             hx-swap="innerHTML">
+            <div class="hr-notif-dropdown-panel__placeholder">
+                <div class="hr-topbar-light-panel__head flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200">
+                    <span class="text-sm font-bold text-slate-900">الإشعارات</span>
+                    <button type="button"
+                            class="hr-topbar-light-panel__close shrink-0"
+                            onclick="window.dispatchEvent(new CustomEvent('hr-notif-close'))"
+                            title="إغلاق"
+                            aria-label="إغلاق">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="flex flex-col items-center justify-center gap-2 py-6">
+                <span class="hr-notif-dropdown-panel__spinner" aria-hidden="true"></span>
+                <span>جاري تحميل الإشعارات…</span>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endwith %}

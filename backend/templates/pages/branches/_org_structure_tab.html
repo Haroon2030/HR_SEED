@@ -1,0 +1,677 @@
+{% load custom_tags %}
+<div class="hr-tabs__panel">
+{% if tab == "branches" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_branch' as add_branch_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم الفرع، الرمز، عدد الموظفين، الحالة..." search_aria_label="بحث الفروع" add_url=add_branch_url add_label="إضافة فرع جديد" show_add=org_perms.branch_write %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم الفرع</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">عدد الموظفين</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for branch in branches %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ branch.name }} {{ branch.code }} {{ branch.emp_count }} {% if branch.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="building-2" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ branch.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">
+                                        {{ branch.code }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    <span class="flex items-center gap-1">
+                                        <i data-lucide="users" class="w-3 h-3"></i>
+                                        {{ branch.emp_count }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if branch.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                                        نشط
+                                    </span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">
+                                        معطل
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:view_branch' branch.id as act_view %}
+                                    {% url 'web:edit_branch' branch.id as act_edit %}
+                                    {% url 'web:delete_branch' branch.id as act_del %}
+                                    {% guarded_table_actions view_url=act_view view_title="عرض التفاصيل" edit_url=act_edit edit_title="تعديل" delete_url=act_del can_edit=org_perms.branch_edit can_delete=org_perms.branch_delete delete_confirm="هل أنت متأكد من حذف الفرع '"|add:branch.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="px-6 py-8 text-center text-slate-500">
+                                    <i data-lucide="building-2" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=6 message="لا توجد فروع مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "cost_centers" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_cost_center_global' as add_cc_global_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم المركز، الرمز، عدد الأقسام، الحالة..." search_aria_label="بحث مراكز التكلفة" add_url=add_cc_global_url add_label="إضافة مركز تكلفة" show_add=org_perms.cost_center_write %}
+
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم المركز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">عدد الأقسام</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for cc in cost_centers %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ cc.name }} {{ cc.code }} {{ cc.dept_count }} {% if cc.branch %}{{ cc.branch.name }}{% endif %} {% if cc.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="target" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ cc.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">
+                                        {{ cc.code }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    <span class="flex items-center gap-1">
+                                        <i data-lucide="folder" class="w-3 h-3"></i>
+                                        {{ cc.dept_count }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if cc.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                                        نشط
+                                    </span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">
+                                        معطل
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_cost_center' cc.id as act_edit %}
+                                    {% url 'web:delete_cost_center' cc.id as act_del %}
+                                    {% if cc.branch %}{% url 'web:view_branch' cc.branch.id as act_view %}{% endif %}
+                                    {% if cc.branch %}
+                                    {% guarded_table_actions view_url=act_view view_title="عرض الفرع" edit_url=act_edit edit_title="تعديل" delete_url=act_del can_edit=org_perms.cost_center_edit can_delete=org_perms.cost_center_delete delete_confirm="هل أنت متأكد من حذف مركز التكلفة '"|add:cc.name|add:"' ؟" %}
+                                    {% else %}
+                                    {% guarded_table_actions edit_url=act_edit edit_title="تعديل" delete_url=act_del can_edit=org_perms.cost_center_edit can_delete=org_perms.cost_center_delete delete_confirm="هل أنت متأكد من حذف مركز التكلفة '"|add:cc.name|add:"' ؟" %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="target" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=6 message="لا توجد مراكز تكلفة مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "departments" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_department_global' as add_dept_global_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم القسم، الرمز، عدد الموظفين، الحالة..." search_aria_label="بحث الأقسام" add_url=add_dept_global_url add_label="إضافة قسم" show_add=org_perms.department_write %}
+
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم القسم</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">عدد الموظفين</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for dept in departments %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ dept.name }} {{ dept.code }} {{ dept.emp_count }} {% if dept.branch %}{{ dept.branch.name }}{% endif %} {% if dept.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="folder" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ dept.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">
+                                        {{ dept.code }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    <span class="flex items-center gap-1">
+                                        <i data-lucide="users" class="w-3 h-3"></i>
+                                        {{ dept.emp_count }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if dept.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                                        نشط
+                                    </span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">
+                                        معطل
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_department' dept.id as act_edit %}
+                                    {% url 'web:delete_department' dept.id as act_del %}
+                                    {% if dept.branch %}{% url 'web:view_branch' dept.branch.id as act_view %}{% endif %}
+                                    {% if dept.branch %}
+                                    {% guarded_table_actions view_url=act_view view_title="عرض الفرع" edit_url=act_edit edit_title="تعديل" delete_url=act_del can_edit=org_perms.department_edit can_delete=org_perms.department_delete delete_confirm="هل أنت متأكد من حذف القسم '"|add:dept.name|add:"' ؟" %}
+                                    {% else %}
+                                    {% guarded_table_actions edit_url=act_edit edit_title="تعديل" delete_url=act_del can_edit=org_perms.department_edit can_delete=org_perms.department_delete delete_confirm="هل أنت متأكد من حذف القسم '"|add:dept.name|add:"' ؟" %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="folder" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=6 message="لا توجد أقسام مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "administrations" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_administration' as add_admin_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم الإدارة، الرمز، مدير الإدارة، الحالة..." search_aria_label="بحث الإدارات" add_url=add_admin_url|add:"?tab=administrations" add_label="إضافة إدارة" show_add=org_perms.system_data_add %}
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">رقم الإدارة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم الإدارة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">مدير الإدارة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for adm in administrations %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ adm.name }} {{ adm.code }} {% if adm.manager %}{{ adm.manager.get_full_name|default:adm.manager.username }}{% endif %} {% if adm.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ adm.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="building" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ adm.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    {% if adm.manager %}
+                                        {{ adm.manager.get_full_name|default:adm.manager.username }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if adm.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_administration' adm.id as act_edit %}
+                                    {% url 'web:delete_administration' adm.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=administrations" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف الإدارة '"|add:adm.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="building" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=6 message="لا توجد إدارات مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "nationalities" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_nationality' as add_nat_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم الجنسية، الرمز، الحالة..." search_aria_label="بحث الجنسيات" add_url=add_nat_url|add:"?tab=nationalities" add_label="إضافة جنسية" show_add=org_perms.system_data_add %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم الجنسية</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for nat in nationalities %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ nat.name }} {{ nat.code }} {% if nat.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="flag" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ nat.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ nat.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if nat.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_nationality' nat.id as act_edit %}
+                                    {% url 'web:delete_nationality' nat.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=nationalities" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف الجنسية '"|add:nat.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="flag" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد جنسيات مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "professions" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_profession' as add_prof_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم المهنة، الرمز، الحالة..." search_aria_label="بحث المهن" add_url=add_prof_url|add:"?tab=professions" add_label="إضافة مهنة" show_add=org_perms.system_data_add %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم المهنة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for prof in professions %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ prof.name }} {{ prof.code }} {% if prof.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="briefcase" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ prof.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ prof.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if prof.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_profession' prof.id as act_edit %}
+                                    {% url 'web:delete_profession' prof.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=professions" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف المهنة '"|add:prof.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="briefcase" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد مهن مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "sponsorships" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_sponsorship' as add_spon_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم الشركة، السجل التجاري، الرمز، الحالة..." search_aria_label="بحث الكفالات" add_url=add_spon_url|add:"?tab=sponsorships" add_label="إضافة كفالة" show_add=org_perms.system_data_add %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم الشركة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">السجل التجاري</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for sponsor in sponsorships %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ sponsor.company_name }} {{ sponsor.commercial_registration|default:'' }} {{ sponsor.code }} {% if sponsor.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="file-text" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ sponsor.company_name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="text-xs font-mono text-slate-700" dir="ltr">{{ sponsor.commercial_registration|default:"—" }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ sponsor.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if sponsor.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_sponsorship' sponsor.id as act_edit %}
+                                    {% url 'web:delete_sponsorship' sponsor.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=sponsorships" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف الكفالة '"|add:sponsor.company_name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="file-text" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=6 message="لا توجد كفالات مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "insurances" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_insurance' as add_ins_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: نوع التأمين، الرمز، الحالة..." search_aria_label="بحث التأمينات" add_url=add_ins_url|add:"?tab=insurances" add_label="إضافة تأمين" show_add=org_perms.system_data_add %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">نوع التأمين</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for ins in insurances %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ ins.insurance_type }} {{ ins.code }} {% if ins.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="shield" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ ins.insurance_type }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ ins.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if ins.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_insurance' ins.id as act_edit %}
+                                    {% url 'web:delete_insurance' ins.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=insurances" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف التأمين '"|add:ins.insurance_type|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="shield" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد تأمينات مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "insurance_classes" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_insurance_class' as add_ins_class_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: نوع الفئة، الرمز، الحالة..." search_aria_label="بحث فئات التأمين" add_url=add_ins_class_url|add:"?tab=insurance_classes" add_label="إضافة فئة تأمين" show_add=org_perms.system_data_add %}
+                
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">نوع الفئة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for ic in insurance_classes %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ ic.class_type }} {{ ic.code }} {% if ic.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="layers" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ ic.class_type }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ ic.code }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if ic.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_insurance_class' ic.id as act_edit %}
+                                    {% url 'web:delete_insurance_class' ic.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=insurance_classes" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف فئة التأمين '"|add:ic.class_type|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="layers" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد فئات تأمين مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "buildings" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_building' as add_building_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم العمارة، الرمز، الحالة..." search_aria_label="بحث السكن" add_url=add_building_url|add:"?tab=buildings" add_label="إضافة عمارة جديدة" show_add=org_perms.system_data_add %}
+
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الرمز</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم العمارة</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for b in buildings %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ b.name }} {{ b.code }} {% if b.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2"><span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ b.code }}</span></td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="home" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ b.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if b.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_building' b.id as act_edit %}
+                                    {% url 'web:delete_building' b.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=buildings" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف العمارة '"|add:b.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="home" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد عمارات مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% elif tab == "banks" %}
+            <div class="p-4" data-hr-table-search-panel>
+                {% url 'web:add_bank' as add_bank_url %}
+                {% include "components/org_tab_toolbar.html" with search_placeholder="بحث ذكي: اسم البنك، الرمز، الحالة..." search_aria_label="بحث البنوك" add_url=add_bank_url|add:"?tab=banks" add_label="إضافة بنك جديد" show_add=org_perms.system_data_add %}
+
+                <div class="overflow-x-auto">
+                    <table class="w-auto divide-y divide-slate-200" data-hr-table-search>
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">#</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">رقم البنك</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">اسم البنك</th>
+                                <th class="px-3 py-2 text-right text-sm font-semibold text-slate-500 uppercase tracking-wider">الحالة</th>
+                                <th class="px-3 py-2 text-left text-sm font-semibold text-slate-500 uppercase tracking-wider">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            {% for bk in banks %}
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                data-search="{{ bk.name }} {{ bk.code }} {% if bk.is_active %}نشط{% else %}معطل{% endif %}">
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ forloop.counter }}</td>
+                                <td class="px-3 py-2"><span class="px-2 py-1 text-xs font-mono rounded-md bg-slate-100 text-slate-800">{{ bk.code }}</span></td>
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="landmark" class="w-4 h-4 text-primary-600"></i>
+                                        <span class="text-xs font-medium text-slate-900">{{ bk.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {% if bk.is_active %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">نشط</span>
+                                    {% else %}
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">معطل</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-left">
+                                    {% url 'web:edit_bank' bk.id as act_edit %}
+                                    {% url 'web:delete_bank' bk.id as act_del %}
+                                    {% guarded_table_actions edit_url=act_edit edit_query="?tab=banks" edit_title="تعديل" delete_url=act_del can_edit=org_perms.system_data_edit can_delete=org_perms.system_data_delete delete_confirm="هل أنت متأكد من حذف البنك '"|add:bk.name|add:"' ؟" %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-slate-500">
+                                    <i data-lucide="landmark" class="w-12 h-12 mx-auto mb-2 text-slate-300"></i>
+                                    <p>لا بيانات</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% include "components/table_search_empty_row.html" with colspan=5 message="لا توجد بنوك مطابقة للبحث" %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+{% endif %}
+</div>

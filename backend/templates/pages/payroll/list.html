@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block page_title %}مسير الرواتب{% endblock %}
+
+{% block content %}
+{% include "pages/payroll/_payroll_table_styles.html" %}
+
+<div class="hr-payroll-page max-w-7xl mx-auto space-y-4" dir="rtl"
+     x-data="{
+        modalRunId: {% if open_run_id %}{{ open_run_id }}{% else %}null{% endif %},
+        modalRunIds: [{% for run in modal_runs %}{{ run.id }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+        auditModalOpen: false,
+        stripOpenRunFromUrl() {
+            try {
+                var u = new URL(window.location.href);
+                if (!u.searchParams.has('open_run')) return;
+                u.searchParams.delete('open_run');
+                history.replaceState(null, '', u.pathname + u.search + u.hash);
+            } catch (e) {}
+        },
+        openModal(id) {
+            this.modalRunId = id;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+        },
+        closeModal() {
+            this.modalRunId = null;
+            this.stripOpenRunFromUrl();
+            if (!this.auditModalOpen) document.body.classList.remove('overflow-hidden');
+        },
+        openAuditModal() {
+            this.auditModalOpen = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+        },
+        closeAuditModal() {
+            this.auditModalOpen = false;
+            if (!this.modalRunId) document.body.classList.remove('overflow-hidden');
+        }
+     }"
+     x-init="if (modalRunId) { document.body.classList.add('overflow-hidden'); $nextTick(function () { if (window.lucide) lucide.createIcons(); stripOpenRunFromUrl(); }); }"
+     @keydown.escape.window="if (auditModalOpen) closeAuditModal(); else closeModal()">
+
+    <header class="hr-payroll-hero hr-glass-panel">
+        <div class="hr-payroll-hero__top">
+            <div class="hr-payroll-hero__brand">
+                <span class="hr-payroll-hero__icon" aria-hidden="true">
+                    <i data-lucide="banknote" class="w-5 h-5"></i>
+                </span>
+                <div class="min-w-0">
+                    <h1 class="hr-payroll-hero__title">مسير الرواتب الشهري</h1>
+                </div>
+            </div>
+            {% if filter_year and filter_month %}
+            <div class="hr-payroll-hero__period" dir="ltr">
+                <i data-lucide="calendar-range" class="w-4 h-4"></i>
+                <span>{{ filter_month|stringformat:"02d" }}/{{ filter_year }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="hr-payroll-hero__stats hr-stat-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="ملخص الفترة">
+            {% if active_payroll_view == 'detailed' %}
+            {% include 'components/kpi_stat_card.html' with label='الوضع' value='مسير تفصيلي' theme='purple' icon='git-branch' %}
+            {% elif active_salary_mode == 'cash' %}
+            {% include 'components/kpi_stat_card.html' with label='الوضع' value='نقدي' theme='amber' icon='banknote' %}
+            {% else %}
+            {% include 'components/kpi_stat_card.html' with label='الوضع' value='تحويل بنكي' theme='indigo' icon='landmark' %}
+            {% endif %}
+
+            {% if active_payroll_view == 'detailed' %}
+            {% include 'components/kpi_stat_card.html' with label='المسيرات' value=detailed_runs_total_count theme='slate' icon='layers' %}
+            {% else %}
+            {% include 'components/kpi_stat_card.html' with label='المسيرات' value=period_runs_total_count theme='slate' icon='layers' %}
+            {% endif %}
+
+            {% if show_table and grand_totals %}
+            {% include 'components/kpi_stat_card.html' with label='الموظفون' value=grand_totals.employees_count theme='emerald' icon='users' %}
+            {% include 'components/kpi_stat_card.html' with label='صافي الفترة' value=grand_totals.total_net|format_amount theme='canvas' icon='wallet' %}
+            {% else %}
+            {% include 'components/kpi_stat_card.html' with label='الحالة' value='بانتظار العرض' hint='حدّد الفترة ثم اضغط ① عرض' theme='mono' icon='calendar-clock' %}
+            {% endif %}
+        </div>
+    </header>
+
+    <section class="hr-payroll-panel hr-payroll-panel--pipeline hr-glass-panel rounded-xl overflow-hidden" aria-label="خط سير المسير">
+        <div class="hr-payroll-panel__head hr-payroll-panel__head--compact">
+            <div class="hr-payroll-panel__title-wrap">
+                <h2 class="hr-payroll-panel__title">
+                    <i data-lucide="workflow" class="w-4 h-4"></i>
+                    {% if active_payroll_view == 'detailed' %}خط سير التفصيلي{% else %}خط سير المسير{% endif %}
+                </h2>
+                <p class="hr-payroll-panel__desc">
+                    {% if active_payroll_view == 'detailed' %}خطوتان — عرض ثم بناء{% else %}دورة كاملة في أربع خطوات{% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="hr-payroll-panel__body hr-payroll-panel__body--compact hr-payroll-panel__body--pipeline">
+            {% if active_payroll_view == 'detailed' %}
+            {% include "pages/payroll/_payroll_detailed_actions.html" %}
+            {% else %}
+            {% include "pages/payroll/_payroll_standard_pipeline.html" %}
+            {% endif %}
+        </div>
+    </section>
+
+    {% include "components/page_tabs_start.html" with wrapper_class="hr-glass-panel hr-page-tabs hr-payroll-tabs rounded-xl overflow-hidden" aria_label="نوع مسير الراتب" %}
+        <a href="?{{ tab_qs_transfer }}"
+           role="tab"
+           class="hr-tab-btn hr-tab-btn--indigo{% if active_payroll_view != 'detailed' and active_salary_mode == 'transfer' %} is-active{% endif %}">
+            <i data-lucide="landmark" class="w-4 h-4"></i>
+            <span>تحويل بنكي</span>
+            {% if mode_run_counts.transfer %}<span class="hr-payroll-tab-count">{{ mode_run_counts.transfer }}</span>{% endif %}
+        </a>
+        <a href="?{{ tab_qs_cash }}"
+           role="tab"
+           class="hr-tab-btn hr-tab-btn--amber{% if active_payroll_view != 'detailed' and active_salary_mode == 'cash' %} is-active{% endif %}">
+            <i data-lucide="banknote" class="w-4 h-4"></i>
+            <span>نقدي</span>
+            {% if mode_run_counts.cash %}<span class="hr-payroll-tab-count">{{ mode_run_counts.cash }}</span>{% endif %}
+        </a>
+        <a href="?{{ tab_qs_detailed }}"
+           role="tab"
+           class="hr-tab-btn hr-tab-btn--purple{% if active_payroll_view == 'detailed' %} is-active{% endif %}">
+            <i data-lucide="git-branch" class="w-4 h-4"></i>
+            <span>مسير تفصيلي</span>
+            {% if detailed_run_count %}<span class="hr-payroll-tab-count">{{ detailed_run_count }}</span>{% endif %}
+        </a>
+    {% include "components/page_tabs_body_start.html" with body_class="p-0" %}
+
+    <div class="hr-payroll-workspace">
+        <form method="POST" action="{% url 'web:list_payroll_runs' %}" id="payrollCreateForm" hx-boost="false" class="hidden" aria-hidden="true">
+            {% csrf_token %}
+            <input type="hidden" name="salary_mode" value="{{ active_salary_mode }}">
+            {% if active_payroll_view == 'detailed' %}<input type="hidden" name="payroll_view" value="detailed">{% endif %}
+        </form>
+
+        <div class="hr-payroll-command-layout">
+            <section class="hr-payroll-panel hr-payroll-panel--command" aria-label="معايير المسير">
+                <div class="hr-payroll-panel__head hr-payroll-panel__head--compact">
+                    <h2 class="hr-payroll-panel__title">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                        {% if active_payroll_view == 'detailed' %}معايير التفصيلي{% else %}معايير الفترة{% endif %}
+                    </h2>
+                    <span class="hr-payroll-panel__mode">
+                        {% if active_payroll_view == 'detailed' %}توزيع الفروع{% else %}{% if active_salary_mode == 'cash' %}صرف نقدي{% else %}تحويل + كفالة{% endif %}{% endif %}
+                    </span>
+                </div>
+                <form method="GET" action="{% url 'web:list_payroll_runs' %}" id="payrollFilterForm" class="hr-payroll-panel__body hr-payroll-panel__body--compact">
+                    <input type="hidden" name="payroll_filters" value="1">
+                    <input type="hidden" name="salary_mode" value="{{ active_salary_mode }}">
+                    {% if active_payroll_view == 'detailed' %}<input type="hidden" name="payroll_view" value="detailed">{% endif %}
+                    <div class="hr-payroll-filters-grid{% if active_salary_mode == 'transfer' %} hr-payroll-filters-grid--transfer{% endif %}">
+                        <div class="hr-payroll-filter-field hr-payroll-filter-field--year">
+                            <label class="hr-payroll-filter-label" for="payrollFilterYear">السنة</label>
+                            <select name="year" id="payrollFilterYear" required class="hr-payroll-filter-input">
+                                {% for y in years_range %}
+                                <option value="{{ y }}" {% if filter_year == y %}selected{% elif not filter_year and y == current_year %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="hr-payroll-filter-field hr-payroll-filter-field--month">
+                            <label class="hr-payroll-filter-label" for="payrollFilterMonth">الشهر</label>
+                            <select name="month" id="payrollFilterMonth" required class="hr-payroll-filter-input">
+                                {% for m in months_range %}
+                                <option value="{{ m }}" {% if filter_month == m %}selected{% elif not filter_month and m == current_month %}selected{% endif %}>{{ m }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="hr-payroll-filter-field hr-payroll-filter-field--branches">
+                            <label class="hr-payroll-filter-label" for="payrollBranch">الفروع</label>
+                            {% include "components/filter_multiselect.html" with name="branch_id" items=branches selected_ids=filter_branch_ids field_class="hr-payroll-filter-input" select_id="payrollBranch" aria_label="الفروع" all_label="جميع الفروع" placeholder="— اختر الفروع —" count_unit="فروع" panel_vw=25 %}
+                        </div>
+                        {% if active_salary_mode == 'transfer' %}
+                        <div class="hr-payroll-filter-field hr-payroll-filter-field--sponsorship" id="payrollSponsorshipWrap">
+                            <label class="hr-payroll-filter-label" for="payrollSponsorship">شركة الكفالة</label>
+                            {% include "components/filter_multiselect.html" with name="sponsorship_id" items=sponsorships selected_ids=filter_sponsorship_ids field_class="hr-payroll-filter-input" select_id="payrollSponsorship" aria_label="شركة الكفالة" all_label="جميع الشركات" placeholder="— اختر شركة الكفالة —" count_unit="شركات" panel_vw=25 %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        {% if active_payroll_view == 'detailed' %}
+        <div class="hr-payroll-workspace__table">
+            {% include "pages/payroll/_payroll_detailed_tables.html" %}
+        </div>
+        {% else %}
+        <section class="hr-payroll-panel hr-payroll-panel--table" aria-label="جدول المسيرات">
+            <div class="hr-payroll-panel__head">
+                <div class="hr-payroll-panel__title-wrap">
+                    <h2 class="hr-payroll-panel__title">
+                        <i data-lucide="table-2" class="w-4 h-4"></i>
+                        المسودات والمسيرات
+                        <span class="hr-payroll-runs-datatable__count-badge">{{ period_runs_total_count }}</span>
+                    </h2>
+                    <p class="hr-payroll-panel__desc">
+                        {% if has_consolidated_run %}
+                        <strong class="text-primary-700">مسودة موحّدة — جميع الفروع</strong>
+                        {% elif show_unified_run_row %}
+                        <strong class="text-primary-700">مسير موحّد — {{ period_totals.runs_count }} فرع</strong>
+                        {% else %}
+                        مرتبة حسب الفرع{% if active_salary_mode == 'transfer' %} والكفالة{% endif %}
+                        {% endif %}
+                    </p>
+                </div>
+                {% if can_export %}
+                <a href="{% url 'web:export_payroll_list_excel' %}?{{ export_unified_qs }}" class="hr-payroll-action-btn hr-payroll-action-btn--export shrink-0">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    <span>تصدير موحّد</span>
+                </a>
+                {% endif %}
+            </div>
+            {% include "pages/payroll/_payroll_runs_table.html" %}
+        </section>
+        {% endif %}
+    </div>
+
+    {% include "components/page_tabs_end.html" %}
+
+    {% include "pages/payroll/_payroll_run_modal.html" with modal_runs=modal_runs %}
+    {% if show_table and has_draft_runs and financial_audit %}
+    {% include "pages/payroll/_payroll_financial_audit_modal.html" with audit_modal_body=True %}
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    function initPayrollPage(root) {
+        var scope = (root && root.querySelector) ? root : document;
+        if (window.lucide) lucide.createIcons();
+        if (window.hrInitFilterMultiselects) window.hrInitFilterMultiselects(scope);
+
+        var filterForm = scope.querySelector('#payrollFilterForm');
+        var createForm = scope.querySelector('#payrollCreateForm');
+        if (!filterForm || filterForm.dataset.payrollBound === '1') return;
+        filterForm.dataset.payrollBound = '1';
+
+        function syncCreateFormHiddenFields() {
+            if (!createForm || !filterForm) return;
+            createForm.querySelectorAll('[data-payroll-sync]').forEach(function (el) { el.remove(); });
+            ['branch_id', 'sponsorship_id', 'year', 'month'].forEach(function (name) {
+                var src = filterForm.querySelector('[name="' + name + '"]');
+                if (!src) return;
+                if (src.multiple) {
+                    Array.from(src.selectedOptions).forEach(function (opt) {
+                        if (!opt.value) return;
+                        var input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = name;
+                        input.value = opt.value;
+                        input.setAttribute('data-payroll-sync', '1');
+                        createForm.appendChild(input);
+                    });
+                } else {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = src.value || '';
+                    input.setAttribute('data-payroll-sync', '1');
+                    createForm.appendChild(input);
+                }
+            });
+        }
+
+        filterForm.addEventListener('change', syncCreateFormHiddenFields);
+        filterForm.addEventListener('submit', syncCreateFormHiddenFields);
+        if (createForm) {
+            createForm.addEventListener('submit', syncCreateFormHiddenFields);
+            syncCreateFormHiddenFields();
+        }
+
+        var yearSelect = filterForm.querySelector('#payrollFilterYear');
+        var monthSelect = filterForm.querySelector('#payrollFilterMonth');
+        var branchSelect = filterForm.querySelector('#payrollBranch');
+        var sponsorshipSelect = filterForm.querySelector('#payrollSponsorship');
+        function submitPayrollFilters() {
+            syncCreateFormHiddenFields();
+            filterForm.requestSubmit();
+        }
+        if (yearSelect) {
+            yearSelect.addEventListener('change', submitPayrollFilters);
+        }
+        if (monthSelect) {
+            monthSelect.addEventListener('change', submitPayrollFilters);
+        }
+        if (branchSelect) {
+            branchSelect.addEventListener('hr-ms:closed', submitPayrollFilters);
+        }
+        if (sponsorshipSelect) {
+            sponsorshipSelect.addEventListener('hr-ms:closed', submitPayrollFilters);
+        }
+    }
+
+    window.hrInitPayrollPage = initPayrollPage;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { initPayrollPage(document); });
+    } else {
+        initPayrollPage(document);
+    }
+})();
+</script>
+{% endblock %}

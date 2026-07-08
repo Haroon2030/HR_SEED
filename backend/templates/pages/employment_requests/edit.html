@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-4" x-data="{
+    activeTab: '{{ active_tab|escapejs }}',
+    insuranceRate: {% if emp_req.insurance_deduction_rate %}'{{ emp_req.insurance_deduction_rate|floatformat:2 }}'{% else %}''{% endif %},
+    saudiIds: [{% for id in saudi_nationality_ids %}{{ id }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+    hasSponsorship() {
+        const el = document.querySelector('[name=sponsorship]');
+        return !!(el && el.value);
+    },
+    getNationalityId() {
+        const el = document.querySelector('[name=nationality]');
+        return el && el.value ? parseInt(el.value, 10) : null;
+    },
+    isSaudi() {
+        const id = this.getNationalityId();
+        return id && this.saudiIds.includes(id);
+    },
+    saudiInsuranceRates: [10.75, 10.25, 9.75],
+    onNationalityChange() {
+        if (!this.isSaudi()) return;
+        const rate = parseFloat(this.insuranceRate);
+        if (!this.saudiInsuranceRates.includes(rate)) {
+            this.insuranceRate = '';
+        }
+    }
+}">
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+        {% url 'web:list_employment_requests' as back_url %}
+        {% include 'components/glass_back_link.html' with back_url=back_url aria_label='رجوع لطلبات التوظيف' %}
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">تعديل بيانات الموظف — {{ emp_req.name }}</h1>
+            <p class="text-slate-500 text-xs">احفظ كل تبويب على حدة. الموافقة النهائية تتاح بعد إكمال جميع الأقسام.</p>
+        </div>
+    </div>
+
+    {% if show_saved_message %}
+    <div class="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-lg p-4 flex items-start gap-3 sticky top-0 z-20" role="status" id="emp-req-saved-banner">
+        <i data-lucide="check-circle" class="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600"></i>
+        <div class="text-sm">
+            <p class="font-bold">{{ saved_message }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if missing_fields %}
+    <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-4 flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600"></i>
+        <div class="text-sm">
+            <p class="font-bold mb-1">الحقول التالية ناقصة ولا يمكن إكمال الموافقة قبل تعبئتها:</p>
+            <p>{{ missing_fields|join:" • " }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if form.errors %}
+    <div class="bg-red-50 border border-red-300 text-red-800 rounded-lg p-4">
+        <p class="font-bold text-sm mb-2">يوجد أخطاء في النموذج:</p>
+        <ul class="text-xs space-y-1 list-disc pr-5">
+            {% for field in form %}
+                {% for error in field.errors %}
+                <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="space-y-4" hx-boost="false" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="return_tab" :value="activeTab">
+        <input type="hidden" name="save_tab" :value="activeTab">
+
+        {% include "components/page_tabs_start.html" with aria_label="أقسام طلب التوظيف" %}
+                <button type="button" role="tab" class="hr-tab-btn{% if tab_status.main == 'complete' %} hr-tab-btn--complete{% endif %}" @click="activeTab = 'main'" :class="activeTab === 'main' && 'is-active'" aria-selected="{% if active_tab == 'main' %}true{% else %}false{% endif %}">
+                    <i data-lucide="user" class="w-4 h-4"></i><span>بيانات الموظف</span>
+                    {% if tab_status.main == 'complete' %}<i data-lucide="check-circle" class="w-3.5 h-3.5 hr-tab-btn__status" aria-hidden="true"></i>{% endif %}
+                </button>
+                <button type="button" role="tab" class="hr-tab-btn{% if tab_status.org == 'complete' %} hr-tab-btn--complete{% endif %}" @click="activeTab = 'org'" :class="activeTab === 'org' && 'is-active'">
+                    <i data-lucide="building" class="w-4 h-4"></i><span>التنظيمي والتأمين</span>
+                    {% if tab_status.org == 'complete' %}<i data-lucide="check-circle" class="w-3.5 h-3.5 hr-tab-btn__status" aria-hidden="true"></i>{% endif %}
+                </button>
+                <button type="button" role="tab" class="hr-tab-btn{% if tab_status.salary == 'complete' %} hr-tab-btn--complete{% endif %}" @click="activeTab = 'salary'" :class="activeTab === 'salary' && 'is-active'">
+                    <i data-lucide="wallet" class="w-4 h-4"></i><span>الراتب</span>
+                    {% if tab_status.salary == 'complete' %}<i data-lucide="check-circle" class="w-3.5 h-3.5 hr-tab-btn__status" aria-hidden="true"></i>{% endif %}
+                </button>
+                <button type="button" role="tab" class="hr-tab-btn{% if tab_status.bank == 'complete' %} hr-tab-btn--complete{% endif %}" x-show="hasSponsorship()" x-cloak @click="activeTab = 'bank'" :class="activeTab === 'bank' && 'is-active'">
+                    <i data-lucide="landmark" class="w-4 h-4"></i><span>البنك</span>
+                    {% if tab_status.bank == 'complete' %}<i data-lucide="check-circle" class="w-3.5 h-3.5 hr-tab-btn__status" aria-hidden="true"></i>{% endif %}
+                </button>
+                <button type="button" role="tab" class="hr-tab-btn{% if tab_status.docs == 'complete' %} hr-tab-btn--complete{% endif %}" @click="activeTab = 'docs'" :class="activeTab === 'docs' && 'is-active'">
+                    <i data-lucide="files" class="w-4 h-4"></i><span>المستندات</span>
+                    {% if tab_status.docs == 'complete' %}<i data-lucide="check-circle" class="w-3.5 h-3.5 hr-tab-btn__status" aria-hidden="true"></i>{% endif %}
+                </button>
+        {% include "components/page_tabs_body_start.html" %}
+
+            {# ─── Tab 1: بيانات الموظف الأساسية ──────────────────────── #}
+            <div x-show="activeTab === 'main'" class="p-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% include "pages/employment_requests/_field.html" with field=form.name %}
+                    {% include "pages/employment_requests/_field.html" with field=form.id_number %}
+                    {% include "pages/employment_requests/_field.html" with field=form.phone %}
+                    {% include "pages/employment_requests/_field.html" with field=form.email %}
+                    {% include "pages/employment_requests/_field.html" with field=form.employee_number %}
+                    {% include "pages/employment_requests/_field.html" with field=form.gender %}
+                    {% include "pages/employment_requests/_field.html" with field=form.hire_date %}
+                    {% include "pages/employment_requests/_field.html" with field=form.medical_insurance_expiry_date %}
+                    {% include "pages/employment_requests/_field.html" with field=form.contract_expiry_date %}
+                    {% include "pages/employment_requests/_field.html" with field=form.health_card_status %}
+                    {% include "pages/employment_requests/_field.html" with field=form.health_card_expiry %}
+                </div>
+                {% include "pages/employment_requests/_tab_save_bar.html" %}
+            </div>
+
+            {# ─── Tab 2: التنظيمي والتأمين ──────────────────────────── #}
+            <div x-show="activeTab === 'org'" x-cloak class="p-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% include "pages/employment_requests/_field.html" with field=form.branch %}
+                    {% include "pages/employment_requests/_field.html" with field=form.department %}
+                    {% include "pages/employment_requests/_field.html" with field=form.cost_center %}
+                    {% include "pages/employment_requests/_field.html" with field=form.nationality %}
+                    {% include "pages/employment_requests/_field.html" with field=form.profession %}
+                    {% include "pages/employment_requests/_field.html" with field=form.sponsorship %}
+                    {% include "pages/employment_requests/_field.html" with field=form.insurance %}
+                    {% include "pages/employment_requests/_field.html" with field=form.insurance_class %}
+                    {% include "pages/employment_requests/_field.html" with field=form.housing %}
+                </div>
+                {% include "pages/employment_requests/_tab_save_bar.html" %}
+            </div>
+
+            {# ─── Tab 3: الراتب ──────────────────────────────────── #}
+            <div x-show="activeTab === 'salary'" x-cloak class="p-5 space-y-4">
+                <div class="p-3 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-xs leading-relaxed">
+                    <strong>بكفالة</strong> → الراتب كله تحويل بنكي (أدخل بيانات البنك في تبويب «البنك»).
+                    <strong>بدون كفالة</strong> → الراتب كله نقدي (لا حاجة للبنك).
+                    يُحدد تلقائياً من <strong>الكفالة</strong> في تبويب التنظيمي.
+                </div>
+                <input type="hidden" name="cash_amount" value="0">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% include "pages/employment_requests/_field.html" with field=form.basic_salary %}
+                    {% include "pages/employment_requests/_field.html" with field=form.housing_allowance %}
+                    {% include "pages/employment_requests/_field.html" with field=form.transport_allowance %}
+                    {% include "pages/employment_requests/_field.html" with field=form.other_allowance %}
+                    {% include "pages/employment_requests/_field.html" with field=form.meal_allowance %}
+                    <div>
+                        {% include "components/insurance_deduction_rate_field.html" with rate=emp_req.insurance_deduction_rate can_edit=True %}
+                        {% for err in form.insurance_deduction_rate.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% include "pages/employment_requests/_tab_save_bar.html" %}
+            </div>
+
+            {# ─── Tab 4: البنك (عند وجود كفالة) ─────────────────────── #}
+            <div x-show="activeTab === 'bank' && hasSponsorship()" x-cloak class="p-5 space-y-4">
+                <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs leading-relaxed">
+                    الموظف على <strong>كفالة</strong> — الراتب كله تحويل بنكي. أدخل البنك والآيبان وطبيعة الحساب.
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="empReqBankFields">
+                    {% include "pages/employment_requests/_field.html" with field=form.bank %}
+                    {% include "pages/employment_requests/_field.html" with field=form.iban %}
+                    {% include "pages/employment_requests/_field.html" with field=form.account_type %}
+                </div>
+                {% include "pages/employment_requests/_tab_save_bar.html" %}
+            </div>
+
+            {# ─── Tab 5: المستندات ────────────────────────────────── #}
+            <div x-show="activeTab === 'docs'" x-cloak class="p-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% include "pages/employment_requests/_file_field.html" with field=form.commencement_document %}
+                    {% include "pages/employment_requests/_file_field.html" with field=form.id_document %}
+                    {% include "pages/employment_requests/_file_field.html" with field=form.passport_document %}
+                    {% include "pages/employment_requests/_file_field.html" with field=form.contract_document %}
+                    {% include "pages/employment_requests/_file_field.html" with field=form.other_documents %}
+                </div>
+                {% include "pages/employment_requests/_tab_save_bar.html" %}
+            </div>
+        {% include "components/page_tabs_end.html" %}
+
+        {# ─── الموافقة النهائية (بعد إكمال كل التبويبات) ─────────── #}
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <a href="{% url 'web:list_employment_requests' %}"
+               class="hr-btn hr-btn--secondary">
+                إلغاء
+            </a>
+            <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+                {% if can_final_approve %}
+                {% include "components/hr_btn.html" with label="حفظ + موافقة نهائية" type="submit" variant="success" icon="check" name="action" value="save_and_approve" onclick="return confirm('سيتم حفظ البيانات والموافقة النهائية وإضافة الموظف لقائمة العاملين. هل أنت متأكد؟');" extra_class="justify-center" %}
+                {% else %}
+                <span class="text-xs text-slate-500 sm:ml-2">أكمل جميع التبويبات (✓) لتفعيل الموافقة النهائية.</span>
+                {% include "components/hr_btn.html" with label="حفظ + موافقة نهائية" type="button" variant="success" icon="check" disabled=True title="أكمل جميع التبويبات أولاً" extra_class="justify-center opacity-50 cursor-not-allowed" %}
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); });
+    document.addEventListener('alpine:initialized', () => {
+        setTimeout(() => lucide.createIcons(), 100);
+    });
+    {% if show_saved_message %}
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof showToast === 'function') {
+            showToast('{{ saved_message|escapejs }}', 'success');
+        }
+        var url = new URL(window.location.href);
+        if (url.searchParams.has('saved')) {
+            url.searchParams.delete('saved');
+            history.replaceState({}, '', url.pathname + url.search + url.hash);
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}

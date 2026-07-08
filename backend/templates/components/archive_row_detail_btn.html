@@ -1,0 +1,26 @@
+{# أيقونة عين + نافذة تفاصيل — title, content, modal_uid #}
+{% load custom_tags %}
+{% if content %}
+<div class="inline-flex items-center shrink-0">
+    <template id="archive-detail-html-{{ modal_uid }}">
+        <div class="hr-text-detail-modal__html-panel">
+            {% if '───' in content or '═══' in content %}
+            {{ content|format_archive_text }}
+            {% else %}
+            <div class="whitespace-pre-line leading-relaxed">{{ content }}</div>
+            {% endif %}
+        </div>
+    </template>
+    <button type="button"
+            class="hr-act hr-act--view"
+            title="عرض التفاصيل"
+            aria-label="عرض تفاصيل {{ title }}"
+            data-hr-text-detail-open
+            data-hr-text-detail-icon="file-text"
+            data-hr-text-detail-title="{{ title }}"
+            data-hr-text-detail-label="الملاحظات"
+            data-hr-text-detail-html-id="archive-detail-html-{{ modal_uid }}">
+        <i data-lucide="eye" class="hr-act__icon"></i>
+    </button>
+</div>
+{% endif %}

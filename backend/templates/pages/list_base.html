@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block content %}<div class="space-y-3 md:space-y-4">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-3">
+            {% block list_back %}{% endblock %}
+        </div>
+        {% block list_actions %}
+        <a href="{% block add_url %}#{% endblock %}" class="hr-btn hr-btn--primary w-full sm:w-auto justify-center">
+            {% lucide_glyph 'plus' 'hr-btn__icon' %}
+            <span>{% block add_button_text %}إضافة{% endblock %}</span>
+        </a>
+        {% endblock %}    </div>
+
+    {% block list_content %}
+    <!-- Table Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs md:text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        {% block table_headers %}
+                        <!-- Table headers -->
+                        {% endblock %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% block table_body %}
+                    <!-- Table rows -->
+                    {% endblock %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endblock %}
+</div>
+{% endblock %}

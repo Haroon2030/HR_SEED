@@ -1,0 +1,574 @@
+{# نافذة نصية موحّدة — ملاحظات، أسباب، تفاصيل (ثيم الشريط الجانبي) #}
+
+<div id="hr-glass-text-modal"
+
+     class="hr-glass-modal-overlay"
+
+     role="dialog"
+
+     aria-modal="true"
+
+     aria-labelledby="hr-glass-text-title"
+
+     aria-hidden="true">
+
+    <div class="hr-glass-modal hr-glass-modal--sidebar relative max-w-lg w-full mx-auto overflow-hidden flex flex-col"
+
+         onclick="event.stopPropagation()">
+
+        <div class="hr-text-detail-modal__head">
+
+            <div class="hr-text-detail-modal__head-main">
+
+                <span class="hr-text-detail-modal__icon-wrap" aria-hidden="true">
+
+                    <i data-lucide="file-text" class="hr-text-detail-modal__icon" id="hr-glass-text-head-icon"></i>
+
+                </span>
+
+                <h3 id="hr-glass-text-title" class="hr-text-detail-modal__title">
+
+                    <span class="truncate" id="hr-glass-text-title-text"></span>
+
+                </h3>
+
+            </div>
+
+            <button type="button" class="hr-text-detail-modal__close" aria-label="إغلاق" id="hr-glass-text-close">
+
+                <i data-lucide="x" class="w-4 h-4"></i>
+
+            </button>
+
+        </div>
+
+        <div class="hr-text-detail-modal__body">
+
+            <div id="hr-glass-text-meta" class="hr-text-detail-modal__meta hidden"></div>
+
+            <div class="hr-text-detail-modal__reason">
+
+                <div class="hr-text-detail-modal__reason-label">
+
+                    <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+
+                    <span id="hr-glass-text-content-label">السبب</span>
+
+                </div>
+
+                <div id="hr-glass-text-content" class="hr-text-detail-modal__reason-text"></div>
+
+            </div>
+
+            <div id="hr-glass-text-attachment" class="hr-text-detail-modal__attachment hidden"></div>
+
+        </div>
+
+        <div class="hr-text-detail-modal__foot">
+
+            <button type="button" id="hr-glass-text-print-btn" class="hr-btn-print hr-btn-print--sm hidden" hidden>
+
+                <span class="hr-btn-print__icon-wrap" aria-hidden="true">
+
+                    <i data-lucide="printer" class="hr-btn-print__icon"></i>
+
+                </span>
+
+                <span class="hr-btn-print__label">طباعة رسمية</span>
+
+            </button>
+
+            <button type="button" id="hr-glass-text-close-btn" class="hr-text-detail-modal__btn">
+
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+
+                إغلاق
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+(function () {
+
+    var modal = document.getElementById('hr-glass-text-modal');
+
+    if (!modal || window.hrOpenGlassTextDetail) return;
+
+
+
+    if (modal.parentElement !== document.body) {
+
+        document.body.appendChild(modal);
+
+    }
+
+
+
+    var titleEl = document.getElementById('hr-glass-text-title-text');
+
+    var iconEl = document.getElementById('hr-glass-text-head-icon');
+
+    var metaEl = document.getElementById('hr-glass-text-meta');
+
+    var contentEl = document.getElementById('hr-glass-text-content');
+
+    var labelEl = document.getElementById('hr-glass-text-content-label');
+
+    var attachmentEl = document.getElementById('hr-glass-text-attachment');
+
+    var printBtnEl = document.getElementById('hr-glass-text-print-btn');
+
+    var currentPrintUrl = '';
+
+    var currentEmployeeName = '';
+
+
+
+    function setPrintButtonVisible(show) {
+
+        if (!printBtnEl) return;
+
+        printBtnEl.hidden = !show;
+
+        printBtnEl.classList.toggle('hidden', !show);
+
+    }
+
+
+
+    function printOfficial() {
+
+        if (currentPrintUrl) {
+
+            window.open(currentPrintUrl, '_blank', 'noopener');
+
+            return;
+
+        }
+
+
+
+        var title = titleEl.textContent || 'التفاصيل';
+
+        var employeeName = currentEmployeeName || '';
+
+        var label = labelEl.textContent || '';
+
+        var metaHtml = metaEl.classList.contains('hidden') ? '' : metaEl.outerHTML;
+
+        var contentHtml = contentEl.innerHTML;
+
+        var cssLink = document.querySelector('link[href*="hr-ui.css"]');
+
+        var cssHref = cssLink ? cssLink.getAttribute('href') : '/static/css/hr-ui.css';
+
+        var win = window.open('', '_blank');
+
+        if (!win) return;
+
+
+
+        win.document.write(
+
+            '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
+
+            '<title>' + title.replace(/</g, '&lt;') + '</title>' +
+
+            '<link rel="stylesheet" href="' + cssHref + '">' +
+
+            '<style>' +
+
+            'body{margin:0;padding:1.25rem 1.5rem;font-family:system-ui,sans-serif;background:#fff;color:#0f172a;}' +
+
+            '.hr-text-detail-print__head{margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #0f172a;}' +
+
+            '.hr-text-detail-print__title{margin:0;font-size:1.125rem;font-weight:800;}' +
+
+            '.hr-text-detail-print__employee{margin:.35rem 0 0;font-size:.875rem;font-weight:700;color:#475569;}' +
+
+            '.hr-text-detail-print__label{margin:0 0 .5rem;font-size:.8125rem;font-weight:700;color:#334155;}' +
+
+            '.hr-text-detail-print__meta{margin-bottom:.85rem;}' +
+
+            '</style></head><body class="hr-app hr-text-detail-print">' +
+
+            '<div class="hr-text-detail-print__head">' +
+
+            '<h1 class="hr-text-detail-print__title">' + title.replace(/</g, '&lt;') + '</h1>' +
+
+            (employeeName ? '<p class="hr-text-detail-print__employee">الموظف: ' + employeeName.replace(/</g, '&lt;') + '</p>' : '') +
+
+            '</div>' +
+
+            (metaHtml ? '<div class="hr-text-detail-print__meta">' + metaHtml + '</div>' : '') +
+
+            '<p class="hr-text-detail-print__label">' + label.replace(/</g, '&lt;') + '</p>' +
+
+            '<div class="hr-text-detail-print__body">' + contentHtml + '</div>' +
+
+            '</body></html>'
+
+        );
+
+        win.document.close();
+
+        win.focus();
+
+        setTimeout(function () { win.print(); }, 400);
+
+    }
+
+
+
+    function applyValueTone(el, valueClass) {
+
+        if (!valueClass) return;
+
+        if (valueClass.indexOf('orange') !== -1) el.classList.add('is-accent');
+
+        if (valueClass.indexOf('rose') !== -1) el.classList.add('is-danger');
+
+        if (valueClass.indexOf('emerald') !== -1) el.classList.add('is-success');
+
+        if (valueClass.indexOf('mono') !== -1) el.classList.add('is-mono');
+
+    }
+
+
+
+    function renderMeta(items) {
+
+        metaEl.innerHTML = '';
+
+        if (!items || !items.length) {
+
+            metaEl.classList.add('hidden');
+
+            return;
+
+        }
+
+        metaEl.classList.remove('hidden');
+
+        items.forEach(function (item) {
+
+            if (!item || !item.label) return;
+
+            var chip = document.createElement('div');
+
+            chip.className = 'hr-text-detail-modal__chip';
+
+            if (item.span === '2' || item.span === 2) chip.classList.add('is-wide');
+
+            var label = document.createElement('span');
+
+            label.className = 'hr-text-detail-modal__chip-label';
+
+            label.textContent = item.label;
+
+            var value = document.createElement('span');
+
+            value.className = 'hr-text-detail-modal__chip-value';
+
+            value.textContent = item.value != null ? String(item.value) : '—';
+
+            applyValueTone(value, item.valueClass || '');
+
+            chip.appendChild(label);
+
+            chip.appendChild(value);
+
+            metaEl.appendChild(chip);
+
+        });
+
+    }
+
+
+
+    function renderAttachment(url, title) {
+
+        attachmentEl.innerHTML = '';
+
+        if (!url) {
+
+            attachmentEl.classList.add('hidden');
+
+            return;
+
+        }
+
+        attachmentEl.classList.remove('hidden');
+
+        var isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(String(url).split('?')[0]);
+
+        if (isImage) {
+
+            var btn = document.createElement('button');
+
+            btn.type = 'button';
+
+            btn.className = 'hr-text-detail-modal__attachment-preview';
+
+            btn.title = title || 'معاينة المرفق';
+
+            var img = document.createElement('img');
+
+            img.src = url;
+
+            img.alt = title || 'مرفق';
+
+            img.className = 'hr-text-detail-modal__attachment-img';
+
+            btn.appendChild(img);
+
+            btn.addEventListener('click', function () {
+
+                if (window.hrOpenGlassMedia) window.hrOpenGlassMedia(url, title || 'مرفق');
+
+            });
+
+            attachmentEl.appendChild(btn);
+
+        }
+
+        var link = document.createElement('button');
+
+        link.type = 'button';
+
+        link.className = 'hr-text-detail-modal__attachment-link';
+
+        link.innerHTML = '<i data-lucide="paperclip" class="w-3.5 h-3.5"></i> عرض المرفق';
+
+        link.addEventListener('click', function () {
+
+            if (window.hrOpenGlassMedia) {
+
+                window.hrOpenGlassMedia(url, title || 'مرفق');
+
+            } else {
+
+                window.open(url, '_blank', 'noopener');
+
+            }
+
+        });
+
+        attachmentEl.appendChild(link);
+
+    }
+
+
+
+    function closeModal() {
+
+        modal.classList.remove('is-open');
+
+        modal.setAttribute('aria-hidden', 'true');
+
+        document.body.style.overflow = '';
+
+    }
+
+
+
+    function openModal(opts) {
+
+        opts = opts || {};
+
+        titleEl.textContent = opts.title || 'التفاصيل';
+
+        labelEl.textContent = opts.contentLabel || 'السبب';
+
+
+
+        contentEl.classList.remove('hr-text-detail-modal__reason-text--html');
+
+        var hasLedger = false;
+
+        contentEl.replaceChildren();
+
+        if (opts.htmlTemplateId) {
+
+            var tpl = document.getElementById(opts.htmlTemplateId);
+
+            if (tpl && tpl.content) {
+
+                contentEl.appendChild(tpl.content.cloneNode(true));
+
+                contentEl.classList.add('hr-text-detail-modal__reason-text--html');
+
+                hasLedger = !!contentEl.querySelector('.hr-ledger-detail');
+
+            } else if (tpl) {
+
+                contentEl.textContent = tpl.textContent || '—';
+
+            } else {
+
+                contentEl.textContent = '—';
+
+            }
+
+        } else {
+
+            contentEl.textContent = opts.content || '—';
+
+        }
+
+
+
+        renderMeta(opts.meta);
+
+        renderAttachment(opts.attachment || '', opts.title || '');
+
+
+
+        currentPrintUrl = opts.printUrl || '';
+
+        currentEmployeeName = opts.employeeName || '';
+
+        setPrintButtonVisible(!!(opts.printUrl || opts.printable || hasLedger));
+
+
+
+        var iconName = opts.icon || 'file-text';
+
+        iconEl.setAttribute('data-lucide', iconName);
+
+
+
+        document.body.appendChild(modal);
+
+        modal.classList.add('is-open');
+
+        modal.setAttribute('aria-hidden', 'false');
+
+        document.body.style.overflow = 'hidden';
+
+
+
+        if (window.lucide) {
+
+            lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+
+        }
+
+    }
+
+
+
+    window.hrOpenGlassTextDetail = openModal;
+
+    window.hrCloseGlassTextDetail = closeModal;
+
+    window.hrPrintGlassTextDetail = printOfficial;
+
+
+
+    document.getElementById('hr-glass-text-close').addEventListener('click', closeModal);
+
+    document.getElementById('hr-glass-text-close-btn').addEventListener('click', closeModal);
+
+    if (printBtnEl) printBtnEl.addEventListener('click', printOfficial);
+
+    modal.addEventListener('click', function (e) {
+
+        if (e.target === modal) closeModal();
+
+    });
+
+    document.addEventListener('keydown', function (e) {
+
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+
+    });
+
+
+
+    document.addEventListener('click', function (e) {
+
+        var trigger = e.target.closest('[data-hr-text-detail-open]');
+
+        if (!trigger) return;
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+
+
+        var meta = [];
+
+        var metaRaw = trigger.getAttribute('data-hr-text-detail-meta');
+
+        if (metaRaw) {
+
+            try { meta = JSON.parse(metaRaw); } catch (err) { meta = []; }
+
+        }
+
+
+
+        var htmlTemplateId = trigger.getAttribute('data-hr-text-detail-html-id') || '';
+
+
+
+        var content = trigger.getAttribute('data-hr-text-detail-content') || '';
+
+        var contentId = trigger.getAttribute('data-hr-text-detail-content-id');
+
+        if (!htmlTemplateId && contentId) {
+
+            var tpl = document.getElementById(contentId);
+
+            if (tpl) {
+
+                content = tpl.content ? tpl.content.textContent : tpl.textContent;
+
+            }
+
+        }
+
+        content = (content || '').trim();
+
+
+
+        openModal({
+
+            title: trigger.getAttribute('data-hr-text-detail-title') || trigger.getAttribute('title') || 'التفاصيل',
+
+            icon: trigger.getAttribute('data-hr-text-detail-icon') || 'file-text',
+
+            contentLabel: trigger.getAttribute('data-hr-text-detail-label') || 'السبب',
+
+            htmlTemplateId: htmlTemplateId,
+
+            content: content,
+
+            meta: meta,
+
+            attachment: trigger.getAttribute('data-hr-text-detail-attachment') || '',
+
+            printUrl: trigger.getAttribute('data-hr-text-detail-print-url') || '',
+
+            printable: trigger.hasAttribute('data-hr-text-detail-printable'),
+
+            employeeName: trigger.getAttribute('data-hr-text-detail-employee-name') || ''
+
+        });
+
+    });
+
+})();
+
+</script>
+

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="flex items-center gap-3 mb-6">
+        <a href="{% if branch %}{% url 'web:view_branch' branch.id %}{% else %}{% url 'web:list_all_departments' %}{% endif %}"
+           class="hr-glass-back-btn" aria-label="رجوع">
+            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">
+                {% if department %}تعديل القسم{% else %}إضافة قسم جديد{% endif %}
+            </h1>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <form method="POST" class="p-6">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <!-- Code & Name -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="code" class="block text-sm font-semibold text-slate-700 mb-2">
+                            رقم القسم <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="code"
+                            name="code"
+                            value="{% if department %}{{ department.code }}{% endif %}"
+                            required
+                            class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                            placeholder="مثال: DEPT001"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="name" class="block text-sm font-semibold text-slate-700 mb-2">
+                            اسم القسم <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            value="{% if department %}{{ department.name }}{% endif %}"
+                            required
+                            class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                            placeholder="مثال: قسم المبيعات"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3 mt-8 pt-6 border-t border-slate-200">
+                {% if branch %}{% url 'web:view_branch' branch.id as dept_cancel_url %}{% else %}{% url 'web:list_all_departments' as dept_cancel_url %}{% endif %}
+                {% if department %}
+                {% include "components/form_actions.html" with cancel_url=dept_cancel_url submit_label="تحديث" submit_icon="check" wrapper_class="" %}
+                {% else %}
+                {% include "components/form_actions.html" with cancel_url=dept_cancel_url submit_label="إضافة" submit_icon="check" wrapper_class="" %}
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

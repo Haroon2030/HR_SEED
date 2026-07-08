@@ -1,0 +1,118 @@
+/**
+ * HR Motion — خفيف (انتقالات أساسية فقط، بدون transform/backdrop-filter)
+ */
+:root {
+    --hr-dur: 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ── الشريط الجانبي ── */
+.hr-nav-link,
+.hr-nav-link--btn,
+.hr-nav-sublink {
+    transition: background var(--hr-dur) ease, color var(--hr-dur) ease;
+}
+
+.hr-sidebar {
+    transition: width 0.2s ease;
+}
+
+/* ── جداول ── */
+.hr-main table tbody tr {
+    transition: background var(--hr-dur) ease;
+}
+
+.hr-main table tbody tr:hover td {
+    background: var(--hr-table-glass-row-hover, rgba(226, 232, 240, 0.55)) !important;
+}
+
+.hr-act {
+    transition: background var(--hr-dur) ease, color var(--hr-dur) ease, border-color var(--hr-dur) ease !important;
+}
+
+/* ── بطاقات KPI فقط (بدون transform) ── */
+.hr-main a.hr-kpi {
+    transition: border-color var(--hr-dur) ease, background var(--hr-dur) ease;
+}
+
+/* ── HTMX ── */
+.htmx-swapping { opacity: 0.85; }
+.htmx-settling { opacity: 1; }
+
+/* ── Toast ── */
+#toast-container {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10080;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    max-width: 92vw;
+    pointer-events: none;
+}
+
+@keyframes hr-toast-in {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hr-toast {
+    animation: hr-toast-in 0.2s ease both;
+    border-radius: 0.75rem;
+    padding: 0.7rem 1.15rem;
+    min-width: 11rem;
+    max-width: 26rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #0f172a;
+    pointer-events: auto;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow:
+        0 10px 28px rgba(15, 23, 42, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.hr-toast.is-leaving { opacity: 0; transition: opacity 0.15s ease; }
+
+.hr-toast--success {
+    background: rgba(236, 253, 245, 0.9) !important;
+    border-color: rgba(5, 150, 105, 0.45) !important;
+    color: #047857 !important;
+}
+
+.hr-toast--error {
+    background: rgba(254, 242, 242, 0.92) !important;
+    border-color: rgba(220, 38, 38, 0.4) !important;
+    color: #b91c1c !important;
+}
+
+.hr-toast--warning {
+    background: rgba(255, 251, 235, 0.92) !important;
+    border-color: rgba(217, 119, 6, 0.45) !important;
+    color: #b45309 !important;
+}
+
+.hr-toast--info {
+    background: rgba(239, 246, 255, 0.92) !important;
+    border-color: rgba(37, 99, 235, 0.4) !important;
+    color: #1d4ed8 !important;
+}
+
+/* ── الرأس عند التمرير (بدون blur) ── */
+.hr-header.is-scrolled {
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}

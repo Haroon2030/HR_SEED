@@ -1,0 +1,270 @@
+"""
+إعداد الأدوار الأساسية الأربعة بعد مزامنة الصلاحيات
+python manage.py setup_roles
+"""
+from django.core.management.base import BaseCommand
+from django.db import transaction
+from apps.core.models import Role, Permission
+from apps.core.role_catalog import ROLE_CATALOG
+
+
+def _role_meta(role_type: str) -> dict:
+    entry = ROLE_CATALOG[role_type]
+    return {
+        'name': entry['name'],
+        'description': entry['description'],
+        'role_type': role_type,
+        'is_system_role': True,
+    }
+
+
+class Command(BaseCommand):
+    help = 'إنشاء الأدوار الأساسية الأربعة في النظام'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset',
+            action='store_true',
+            help='إعادة إنشاء الأدوار (سيحذف ويعيد إنشاء الأدوار النظامية)'
+        )
+
+    def handle(self, *args, **options):
+        with transaction.atomic():
+            self.stdout.write(self.style.WARNING('👥 جاري إعداد الأدوار...'))
+            
+            if options['reset']:
+                self.stdout.write(self.style.WARNING('⚠️  إعادة تعيين الأدوار النظامية...'))
+                # استخدام hard_delete بدلاً من soft delete
+                system_roles = Role.all_objects.filter(is_system_role=True)
+                for role in system_roles:
+                    role.hard_delete()
+            
+            self.create_roles()
+            
+            self.stdout.write(self.style.SUCCESS('✅ تم إعداد الأدوار بنجاح!'))
+
+    def create_roles(self):
+        """إنشاء الأدوار الأربعة مع صلاحياتها"""
+        self.stdout.write(self.style.HTTP_INFO('👥 إنشاء/تحديث الأدوار...'))
+        
+        # الحصول على جميع الصلاحيات مصنفة حسب الكود
+        all_permissions = {p.code: p for p in Permission.objects.select_related('module').all()}
+        
+        roles_config = [
+            # ═══════════════════════════════════════════════════════════
+            # 1️⃣ الأدمن (كل الصلاحيات)
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.ADMIN),
+                'permissions': 'all',  # كل الصلاحيات
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 2️⃣ مدير فرع — الموافقة الأولى على طلبات فرعه
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.MANAGER),
+                'permissions': [
+                    # الموظفين
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    # الأقسام والفروع
+                    'departments.view',
+                    'branches.view',
+                    # الإجازات (أكواد legacy — التنفيذ الفعلي عبر employees.edit)
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    # التقارير
+                    'reports.view',
+                    'operations.view',
+                    'operations.approve_branch',
+                    'operations.return',
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.confirm_branch',
+                ],
+            },
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.ADMIN_MANAGER),
+                'permissions': [
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'departments.view',
+                    'branches.view',
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    'reports.view',
+                    'operations.view',
+                    'operations.approve_admin',
+                    'operations.return',
+                ],
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 3️⃣ مدير الموارد البشرية (المدير العام في دورة الموافقات)
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.HR_MANAGER),
+                'permissions': [
+                    # الموظفين - كل الصلاحيات
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'employees.delete',
+                    'employees.edit_absence',
+                    'employees.delete_absence',
+                    'employees.edit_statement',
+                    'employees.delete_statement',
+                    'employees.edit_loan',
+                    'employees.delete_loan',
+                    'employees.edit_ledger',
+                    'employees.delete_ledger',
+                    'employees.edit_leave',
+                    'employees.delete_leave',
+                    # الأقسام - كل الصلاحيات
+                    'departments.view',
+                    'departments.add',
+                    'departments.edit',
+                    'departments.delete',
+                    'departments.manage',
+                    # الإجازات (أكواد legacy)
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    # الرواتب
+                    'payroll.view',
+                    'payroll.manage',
+                    'payroll.process',
+                    'payroll.view_reports',
+                    # المستخدمين - عرض وإضافة وتعديل
+                    'users.view',
+                    'users.add',
+                    'users.edit',
+                    # التقارير - عرض
+                    'reports.view',
+                    'operations.view',
+                    'operations.approve_branch',
+                    'operations.approve_admin',
+                    'operations.approve_gm',
+                    'operations.approve_officer',
+                    'operations.return',
+                    'operations.resubmit',
+                    'cash_shortages.view',
+                    'cash_shortages.add',
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.assign',
+                    'maintenance.manage',
+                    'maintenance.confirm_branch',
+                    'maintenance.return',
+                    'maintenance.workers_view',
+                    'maintenance.workers_add',
+                    'maintenance.workers_edit',
+                    'maintenance.workers_delete',
+                ],
+            },
+
+            {
+                **_role_meta(Role.RoleType.MAINTENANCE_MANAGER),
+                'permissions': [
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.assign',
+                    'maintenance.manage',
+                    'maintenance.confirm_branch',
+                    'maintenance.return',
+                    'maintenance.workers_view',
+                    'maintenance.workers_add',
+                    'maintenance.workers_edit',
+                    'maintenance.workers_delete',
+                    'branches.view',
+                ],
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 4️⃣ موظف عادي
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.EMPLOYEE),
+                'permissions': [
+                    # عرض بياناته فقط
+                    'employees.view',  # (سيتم تطبيق فلتر لرؤية نفسه فقط في الـ views)
+                    # الإجازات
+                    'leaves.view',  # (يرى إجازاته فقط)
+                    'leaves.request',    # طلب إجازة (يتوافق مع setup_permissions_and_roles)
+                ],
+            },
+
+            # ═══════════════════════════════════════════════════════════
+            # 5️⃣ أخصائي موارد بشرية (المرحلة الأخيرة في دورة الموافقات)
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.HR_OFFICER),
+                'permissions': [
+                    'employees.view',
+                    'employees.edit',
+                    'leaves.view',
+                    'leaves.manage',
+                    'operations.view',
+                    'operations.approve_officer',
+                    'attendance.view',
+                    'branches.view',
+                ],
+            },
+            {
+                **_role_meta(Role.RoleType.SPECIALIST),
+                'permissions': [
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'departments.view',
+                    'branches.view',
+                ],
+            },
+            {
+                **_role_meta(Role.RoleType.BRANCH_ACCOUNTANT),
+                'permissions': [
+                    'employees.view',
+                    'cash_shortages.view',
+                    'cash_shortages.add',
+                    'operations.view',
+                    'operations.approve_branch',
+                    'operations.return',
+                ],
+            },
+        ]
+        
+        for role_config in roles_config:
+            # إنشاء أو تحديث الدور
+            role, created = Role.objects.update_or_create(
+                role_type=role_config['role_type'],
+                defaults={
+                    'name': role_config['name'],
+                    'description': role_config['description'],
+                    'is_system_role': role_config['is_system_role'],
+                    'is_active': True,
+                }
+            )
+            
+            # ربط الصلاحيات
+            if role_config['permissions'] == 'all':
+                role.permissions.set(all_permissions.values())
+                perm_count = len(all_permissions)
+            else:
+                role_permissions = [all_permissions[code] for code in role_config['permissions'] if code in all_permissions]
+                role.permissions.set(role_permissions)
+                perm_count = len(role_permissions)
+            
+            action = 'إنشاء' if created else 'تحديث'
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'  ✓ تم {action} الدور: {role.name} ({perm_count} صلاحية)'
+                )
+            )
+        
+        self.stdout.write(self.style.SUCCESS(f'✅ تم إنشاء/تحديث {len(roles_config)} دور'))

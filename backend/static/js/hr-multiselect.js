@@ -1,0 +1,333 @@
+/**
+ * قوائم فلترة متعددة + خيار «الكل» للقوائم المفردة (.hr-filter-select).
+ */
+(function () {
+    'use strict';
+
+    function isNativeReportSelect(select) {
+        if (!select) return false;
+        return select.id === 'reportSelect' || select.getAttribute('data-hr-native-select') === '1';
+    }
+
+    /** إزالة أي غلاف قديم (hr-ss / hr-ms) عن قائمة التقرير — native select فقط. */
+    function restoreNativeReportSelect() {
+        var sel = document.getElementById('reportSelect');
+        if (!sel) return;
+        var guard = 0;
+        while (guard++ < 8) {
+            var wrap = sel.closest('.hr-ms, .hr-ss');
+            if (!wrap || !wrap.parentNode) break;
+            wrap.parentNode.insertBefore(sel, wrap);
+            wrap.remove();
+        }
+        delete sel.dataset.msReady;
+        delete sel.dataset.ssReady;
+        sel.classList.remove('hr-filter-ms-native', 'hr-filter-single');
+        sel.removeAttribute('hidden');
+        sel.style.cssText = '';
+    }
+
+    window.hrRestoreNativeReportSelect = restoreNativeReportSelect;
+
+    function initMultiselect(select) {
+        if (isNativeReportSelect(select)) return;
+        if (select.dataset.msReady === '1') return;
+        select.dataset.msReady = '1';
+
+        const allLabel = select.dataset.allLabel || 'الكل';
+        const placeholder = select.dataset.placeholder || '— اختر —';
+        const noAll = select.dataset.noAll === '1';
+        const requireSelection = select.dataset.requireSelection === '1';
+        const singleMode = select.dataset.single === '1';
+        const wrap = document.createElement('div');
+        wrap.className = 'hr-ms';
+        wrap.dir = 'rtl';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'hr-ms__btn';
+        btn.setAttribute('aria-haspopup', 'listbox');
+        btn.setAttribute('aria-expanded', 'false');
+
+        const panel = document.createElement('div');
+        panel.className = 'hr-ms__panel';
+        panel.hidden = true;
+        panel.setAttribute('role', 'listbox');
+
+        let allCb = null;
+        if (!noAll) {
+            const allRow = document.createElement('label');
+            allRow.className = 'hr-ms__row hr-ms__row--all';
+            allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'hr-ms__cb';
+            allCb.value = '';
+            allRow.appendChild(allCb);
+            allRow.appendChild(document.createTextNode(' ' + allLabel));
+            panel.appendChild(allRow);
+        }
+
+        const optionCbs = [];
+        Array.from(select.options).forEach(function (opt) {
+            if (!opt.value) return;
+            const row = document.createElement('label');
+            row.className = 'hr-ms__row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'hr-ms__cb';
+            cb.value = opt.value;
+            cb.checked = opt.selected;
+            row.appendChild(cb);
+            row.appendChild(document.createTextNode(' ' + opt.textContent.trim()));
+            panel.appendChild(row);
+            optionCbs.push({ cb: cb, opt: opt });
+        });
+
+        function syncFromNative() {
+            const selected = optionCbs.filter(function (x) { return x.opt.selected; });
+            if (allCb) {
+                if (selected.length === 0) {
+                    allCb.checked = true;
+                    optionCbs.forEach(function (x) { x.cb.checked = false; });
+                } else {
+                    allCb.checked = false;
+                    optionCbs.forEach(function (x) { x.cb.checked = x.opt.selected; });
+                }
+            } else {
+                optionCbs.forEach(function (x) { x.cb.checked = x.opt.selected; });
+            }
+            updateLabel();
+        }
+
+        function syncToNative() {
+            if (allCb && allCb.checked) {
+                optionCbs.forEach(function (x) {
+                    x.opt.selected = false;
+                    x.cb.checked = false;
+                });
+            } else {
+                optionCbs.forEach(function (x) {
+                    x.opt.selected = x.cb.checked;
+                });
+            }
+            updateLabel();
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function updateLabel() {
+            const empty = optionCbs.every(function (x) { return !x.opt.selected; });
+            if (empty) {
+                btn.textContent = noAll ? placeholder : allLabel;
+                return;
+            }
+            const n = optionCbs.filter(function (x) { return x.opt.selected; }).length;
+            if (n === 1) {
+                const one = optionCbs.find(function (x) { return x.opt.selected; });
+                btn.textContent = one ? one.opt.textContent.trim() : placeholder;
+            } else {
+                const unit = select.dataset.countUnit || 'محدّد';
+                btn.textContent = n + ' ' + unit;
+            }
+        }
+
+        if (allCb) {
+            allCb.addEventListener('change', function () {
+                if (allCb.checked) {
+                    optionCbs.forEach(function (x) { x.cb.checked = false; });
+                }
+                syncToNative();
+            });
+        }
+
+        optionCbs.forEach(function (x) {
+            x.cb.addEventListener('change', function () {
+                if (singleMode && x.cb.checked) {
+                    optionCbs.forEach(function (y) {
+                        if (y !== x) {
+                            y.cb.checked = false;
+                            y.opt.selected = false;
+                        }
+                    });
+                }
+                if (allCb && x.cb.checked) allCb.checked = false;
+                if (allCb && optionCbs.every(function (y) { return !y.cb.checked; })) {
+                    allCb.checked = true;
+                }
+                syncToNative();
+            });
+        });
+
+        function positionPanel() {
+            const rect = btn.getBoundingClientRect();
+            const panelVw = parseFloat(select.dataset.panelVw || '');
+            const panelVh = parseFloat(select.dataset.panelVh || '');
+            panel.style.position = 'fixed';
+            panel.style.top = Math.round(rect.bottom + 2) + 'px';
+            panel.style.zIndex = '9999';
+            panel.classList.add('hr-ms__panel--open');
+
+            if (panelVw > 0) {
+                const widthPx = Math.round(window.innerWidth * panelVw / 100);
+                panel.style.width = widthPx + 'px';
+                panel.style.left = 'auto';
+                panel.style.right = Math.max(8, Math.round(window.innerWidth - rect.right)) + 'px';
+            } else {
+                panel.style.width = Math.round(rect.width) + 'px';
+                panel.style.left = Math.round(rect.left) + 'px';
+                panel.style.right = 'auto';
+            }
+
+            if (panelVh > 0) {
+                const heightPx = Math.round(window.innerHeight * panelVh / 100);
+                panel.style.maxHeight = heightPx + 'px';
+                panel.style.height = heightPx + 'px';
+                panel.style.overflowY = 'auto';
+            } else {
+                panel.style.maxHeight = '';
+                panel.style.height = '';
+                panel.style.overflowY = '';
+            }
+        }
+
+        panel._hrMsWrap = wrap;
+        panel._hrMsSelect = select;
+
+        function closePanel() {
+            panel.hidden = true;
+            panel.classList.remove('hr-ms__panel--open');
+            panel.style.position = '';
+            panel.style.top = '';
+            panel.style.left = '';
+            panel.style.right = '';
+            panel.style.width = '';
+            panel.style.maxHeight = '';
+            panel.style.height = '';
+            panel.style.overflowY = '';
+            panel.style.zIndex = '';
+            if (panel.parentNode !== wrap) {
+                wrap.insertBefore(panel, select);
+            }
+            btn.setAttribute('aria-expanded', 'false');
+            select.dispatchEvent(new CustomEvent('hr-ms:closed', { bubbles: true }));
+        }
+
+        function closeOtherPanels() {
+            document.querySelectorAll('.hr-ms__panel').forEach(function (p) {
+                if (p === panel || p.hidden) return;
+                p.hidden = true;
+                p.classList.remove('hr-ms__panel--open');
+                p.style.position = '';
+                p.style.top = '';
+                p.style.left = '';
+                p.style.right = '';
+                p.style.width = '';
+                p.style.maxHeight = '';
+                p.style.height = '';
+                p.style.overflowY = '';
+                p.style.zIndex = '';
+                if (p._hrMsWrap && p.parentNode === document.body) {
+                    p._hrMsWrap.insertBefore(p, p._hrMsSelect);
+                }
+                const otherBtn = p._hrMsWrap && p._hrMsWrap.querySelector('.hr-ms__btn');
+                if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function openPanel() {
+            closeOtherPanels();
+            if (panel.parentNode !== document.body) {
+                document.body.appendChild(panel);
+            }
+            panel.hidden = false;
+            positionPanel();
+            btn.setAttribute('aria-expanded', 'true');
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (panel.hidden) {
+                openPanel();
+            } else {
+                closePanel();
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!wrap.contains(e.target) && !panel.contains(e.target)) {
+                closePanel();
+            }
+        });
+
+        window.addEventListener('resize', closePanel);
+        window.addEventListener('scroll', function (e) {
+            if (!panel.hidden && !panel.contains(e.target)) closePanel();
+        }, true);
+
+        select.classList.add('hr-filter-ms-native');
+        select.parentNode.insertBefore(wrap, select);
+        wrap.appendChild(btn);
+        wrap.appendChild(panel);
+        wrap.appendChild(select);
+
+        select.addEventListener('change', syncFromNative);
+        const form = select.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                optionCbs.forEach(function (x) {
+                    x.opt.selected = x.cb.checked;
+                });
+                select.disabled = false;
+                const any = optionCbs.some(function (x) { return x.cb.checked; });
+                if (requireSelection && !any) {
+                    e.preventDefault();
+                    alert('يرجى اختيار خيار واحد على الأقل.');
+                    openPanel();
+                    return;
+                }
+                if (!requireSelection) {
+                    select.disabled = !any;
+                }
+            });
+        }
+
+        syncFromNative();
+    }
+
+    function ensureAllOption(select) {
+        if (select.multiple || select.required) return;
+        const first = select.options[0];
+        if (first && first.value === '') return;
+        const label = select.dataset.allLabel || 'الكل';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = label;
+        select.insertBefore(opt, select.firstChild);
+    }
+
+    function init(root) {
+        restoreNativeReportSelect();
+        const scope = root && root.querySelectorAll ? root : document;
+        scope.querySelectorAll('select.hr-filter-ms:not(.hr-filter-ms-native)').forEach(initMultiselect);
+        scope.querySelectorAll('select.hr-filter-single:not(.hr-filter-ms-native)').forEach(function (select) {
+            if (!isNativeReportSelect(select)) return;
+            restoreNativeReportSelect();
+        });
+        scope.querySelectorAll('select.hr-filter-select').forEach(ensureAllOption);
+        restoreNativeReportSelect();
+    }
+
+    window.hrInitFilterMultiselects = init;
+
+    function boot() {
+        init();
+        restoreNativeReportSelect();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+    window.addEventListener('load', restoreNativeReportSelect);
+})();

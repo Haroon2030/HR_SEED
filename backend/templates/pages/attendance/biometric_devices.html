@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block content %}
+{% include "pages/attendance/_biometric_page_styles.html" %}
+<div class="max-w-7xl mx-auto space-y-4" x-data="biometricPage()" dir="rtl"
+    {% if link_device_id and link_user_id and link_device_user %}
+    x-init="$nextTick(() => openEnrollForm({{ link_device_id }}, {{ link_user_id }}, '{{ link_device_user.device.name|escapejs }}', '{{ link_device_user.name|escapejs }}'))"
+    {% endif %}>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="fingerprint" class="w-7 h-7 text-primary-600"></i>
+                أجهزة البصمة
+            </h1>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% if user|has_permission:'attendance.manage' %}
+            {% include "components/hr_btn.html" with label="إضافة جهاز" type="button" variant="primary" icon="plus" x_click="openDeviceForm()" %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if devices_without_branch %}
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+        <span>{{ devices_without_branch }} جهاز بدون فرع — عيّنه من «تعديل» قبل المزامنة.</span>
+    </div>
+    {% endif %}
+
+    <div class="zk-bio-card">
+        <div class="zk-bio-card-hd">
+            <div class="flex items-center gap-3">
+                <span class="zk-bio-sec-tag">01</span>
+                <h2 class="text-sm font-bold text-slate-800">الأجهزة المسجّلة</h2>
+                <span class="zk-bio-stat">{{ devices|length }} جهاز</span>
+            </div>
+            <form method="get" class="flex flex-wrap items-center gap-2">
+                <label class="text-xs text-slate-500">فرع</label>
+                <div class="min-w-[10rem]" style="min-width:10rem">
+                    {% include "components/filter_multiselect.html" with name="branch" items=branches selected_ids=branch_filter_ids field_class="zk-bio-field" %}
+                </div>
+                <button type="submit" class="text-xs font-semibold text-primary-700 hover:text-primary-900 px-2 py-1">تصفية</button>
+                {% if branch_filter_ids %}
+                <a href="{% url 'web:biometric_devices' %}"
+                   class="text-xs text-slate-500 hover:text-primary-600">مسح</a>
+                {% endif %}
+            </form>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="zk-bio-tbl zk-bio-tbl--compact">
+                <thead>
+                    <tr>
+                        <th class="text-right w-12 zk-bio-col-mono">ID</th>
+                        <th class="text-right">الجهاز</th>
+                        <th class="text-right zk-bio-col-mono">IP:Port</th>
+                        <th class="text-right">الحالة</th>
+                        <th class="text-right">آخر مزامنة</th>
+                        <th class="text-right">بصمات</th>
+                        <th class="text-right">مفتاح وكيل</th>
+                        {% if user|has_permission:'attendance.manage' %}
+                        <th class="text-right zk-bio-tbl__actions-th zk-bio-col-actions">إجراء</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for d in devices %}
+                    <tr class="hover:bg-slate-50/80">
+                        <td class="zk-bio-col-mono text-slate-500" dir="ltr">{{ d.pk }}</td>
+                        <td>
+                            <span class="font-medium text-slate-900">{{ d.name }}</span>
+                            {% if not d.is_active %}<span class="mr-1 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">معطّل</span>{% endif %}
+                        </td>
+                        <td class="zk-bio-col-mono" dir="ltr">{{ d.address_label }}</td>
+                        <td>
+                            {% if d.connection_status == 'online' %}
+                            <span class="inline-flex items-center gap-1 text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>متصل</span>
+                            {% elif d.connection_status == 'error' %}
+                            <span class="inline-flex items-center gap-1 text-red-700" title="{{ d.last_error }}"><span class="w-2 h-2 rounded-full bg-red-500"></span>خطأ</span>
+                            {% elif d.agent_api_key and d.last_sync_at %}
+                            <span class="inline-flex items-center gap-1 text-sky-700" title="آخر مزامنة عبر وكيل الفرع"><span class="w-2 h-2 rounded-full bg-sky-500"></span>وكيل LAN</span>
+                            {% elif d.agent_api_key %}
+                            <span class="inline-flex items-center gap-1 text-amber-700" title="بانتظار أول مزامنة من PC الفرع"><span class="w-2 h-2 rounded-full bg-amber-400"></span>بانتظار وكيل</span>
+                            {% else %}
+                            <span class="text-slate-500">غير معروف</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-slate-600">{{ d.last_sync_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                        <td>
+                            <div class="zk-bio-punch-cell" dir="ltr">
+                                <span class="zk-bio-punch-cell__count" title="سجلات في قاعدة HR">{{ d.punch_count }}</span>
+                                <span class="zk-bio-punch-cell__tag zk-bio-punch-cell__tag--db">HR DB</span>
+                                {% if d.last_ingest_log %}
+                                <span class="zk-bio-punch-cell__tag {% if d.last_ingest_log.status == 'success' %}zk-bio-punch-cell__tag--ok{% else %}zk-bio-punch-cell__tag--err{% endif %}"
+                                    title="{% if d.last_ingest_log.status != 'success' %}{{ d.last_ingest_log.message|default:d.last_ingest_log.get_status_display }}{% else %}آخر رفع ناجح{% endif %}">
+                                    ingest +{{ d.last_ingest_log.imported }}
+                                    {% if d.last_ingest_log.status != 'success' %}
+                                    <span class="zk-bio-punch-cell__err-hint">· {{ d.last_ingest_log.message|default:d.last_ingest_log.get_status_display|truncatechars:28 }}</span>
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                                {% if d.pull_pending %}
+                                <span class="zk-bio-punch-cell__tag zk-bio-punch-cell__tag--pull" title="طلب سحب من الموقع — بانتظار الوكيل">pull pending</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if d.agent_api_key %}
+                            <span class="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="shield-check" class="w-3 h-3"></i> مُفعّل
+                            </span>
+                            {% else %}
+                            <span class="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">غير مُولَّد</span>
+                            {% endif %}
+                        </td>
+                        {% if user|has_permission:'attendance.manage' %}
+                        <td class="zk-bio-tbl__actions-td zk-bio-col-actions">
+                            <div class="zk-bio-action-bar" dir="ltr">
+                                <button type="button"
+                                    @click="generateAgentKey({{ d.pk }}, '{{ d.name|escapejs }}', {{ d.agent_api_key|yesno:'true,false' }}, '{{ d.ip_address }}', {{ d.port }})"
+                                    class="hr-btn hr-btn--icon hr-btn--bio-key"
+                                    :disabled="loadingId === {{ d.pk }}"
+                                    title="مفتاح وكيل"
+                                    aria-label="مفتاح وكيل">
+                                    <i data-lucide="key-round" class="w-3 h-3"></i>
+                                </button>
+                                {% if d.ip_address|is_private_lan_ip %}
+                                <form method="post" action="{% url 'web:biometric_device_sync' d.pk %}" class="zk-bio-action-bar__form">
+                                    {% csrf_token %}
+                                    {% include "components/bio_action_btn.html" with type="submit" variant="sync" icon="refresh-cw" title="مزامنة (LAN)" %}
+                                </form>
+                                {% else %}
+                                <button type="button" @click="testDevice({{ d.pk }})" class="hr-btn hr-btn--icon hr-btn--bio-test" :disabled="loadingId === {{ d.pk }}" title="اختبار" aria-label="اختبار">
+                                    <i data-lucide="activity" class="w-3 h-3"></i>
+                                </button>
+                                <button type="button" @click="syncUsers({{ d.pk }})" class="hr-btn hr-btn--icon hr-btn--bio-users" :disabled="loadingId === {{ d.pk }}" title="المستخدمون" aria-label="المستخدمون">
+                                    <i data-lucide="users" class="w-3 h-3"></i>
+                                </button>
+                                <button type="button" @click="syncDevice({{ d.pk }})" class="hr-btn hr-btn--icon hr-btn--bio-sync" :disabled="loadingId === {{ d.pk }}" title="مزامنة" aria-label="مزامنة">
+                                    <i data-lucide="download" class="w-3 h-3"></i>
+                                </button>
+                                {% endif %}
+                                <button type="button" @click="openDeviceForm({
+                                    id: {{ d.pk }},
+                                    name: '{{ d.name|escapejs }}',
+                                    ip: '{{ d.ip_address }}',
+                                    port: {{ d.port }},
+                                    comm_key: {{ d.comm_key }},
+                                    branch_id: {% if d.branch_id %}'{{ d.branch_id }}'{% else %}''{% endif %},
+                                    is_active: {{ d.is_active|yesno:'true,false' }}
+                                })" title="تعديل" aria-label="تعديل" class="hr-btn hr-btn--icon hr-btn--bio-edit">
+                                    <i data-lucide="pencil" class="w-3 h-3"></i>
+                                </button>
+                                {% url 'web:biometric_device_delete' d.pk as act_del %}
+                                {% if d.punch_count %}
+                                {% include "components/table_act_delete.html" with url=act_del confirm="حذف نهائي لجهاز «"|add:d.name|add:"» (رقم "|add:d.pk|add:") من قاعدة البيانات؟ سيُحذف "|add:d.punch_count|add:" سجل بصمة وكل الربط — لا يمكن التراجع." title="حذف الجهاز" bio_btn=True form_class="zk-bio-action-bar__form" %}
+                                {% else %}
+                                {% include "components/table_act_delete.html" with url=act_del confirm="حذف نهائي لجهاز «"|add:d.name|add:"» (رقم "|add:d.pk|add:") من قاعدة البيانات؟ لا يمكن التراجع." title="حذف الجهاز" bio_btn=True form_class="zk-bio-action-bar__form" %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="{% if user|has_permission:'attendance.manage' %}8{% else %}7{% endif %}" class="px-4 py-8 text-center text-slate-500">لا بيانات</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="zk-bio-card mb-4">
+        <div class="zk-bio-card-hd">
+            <div>
+                <span class="zk-bio-sec-tag">02</span>
+                <h2 class="text-sm font-bold text-slate-800">مستخدمو الأجهزة</h2>
+                <p class="text-[10px] text-slate-500 mt-0.5">أسماء من البصمة — يُحدَّث عند المزامنة</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+                {% if device_users_total %}
+                <span class="zk-bio-stat">إجمالي {{ device_users_stats.total }}</span>
+                <span class="zk-bio-stat zk-bio-stat-warn">غير مربوط {{ device_users_stats.unmapped }}</span>
+                <span class="zk-bio-stat">{{ device_users_page.start_index }}–{{ device_users_page.end_index }} / {{ device_users_total }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <form method="get" class="zk-bio-filter">
+            {% for bid in branch_filter_ids %}<input type="hidden" name="branch" value="{{ bid }}">{% endfor %}
+            <div>
+                <label class="zk-bio-lbl">بحث</label>
+                <input type="search" name="users_q" value="{{ device_user_filters.search }}"
+                    placeholder="اسم، رقم، بطاقة، موظف HR..."
+                    class="zk-bio-field" autocomplete="off">
+            </div>
+            <div>
+                <label class="zk-bio-lbl">الجهاز</label>
+                <select name="users_device" class="hr-filter-select zk-bio-field">
+                    <option value="">الكل</option>
+                    {% for d in devices %}
+                    <option value="{{ d.pk }}" {% if device_user_filters.device_id == d.pk %}selected{% endif %}>{{ d.name }}{% if d.branch %} — {{ d.branch.name }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="zk-bio-lbl">الربط بـ HR</label>
+                <select name="users_mapped" class="hr-filter-select zk-bio-field">
+                    <option value="">الكل</option>
+                    <option value="1" {% if device_user_filters.mapped_only == True %}selected{% endif %}>مربوط فقط</option>
+                    <option value="0" {% if device_user_filters.mapped_only == False %}selected{% endif %}>غير مربوط فقط</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap gap-2 justify-end hr-filter-form">
+                {% url 'web:biometric_devices' as bio_clear_url %}
+                {% include "components/filter_actions.html" with clear_url=bio_clear_url|add:"#device-users-table" submit_label="بحث" %}
+            </div>
+        </form>
+
+        <div id="device-users-table" class="overflow-x-auto">
+            <table class="zk-bio-tbl">
+                <thead>
+                    <tr>
+                        <th class="text-center px-3 py-2 font-medium w-10">#</th>
+                        <th class="text-right px-3 py-2 font-medium">الجهاز</th>
+                        <th class="text-right px-3 py-2 font-medium">رقم المستخدم</th>
+                        <th class="text-right px-3 py-2 font-medium">الاسم على الجهاز</th>
+                        <th class="text-right px-3 py-2 font-medium">البطاقة</th>
+                        <th class="text-right px-3 py-2 font-medium">موظف HR</th>
+                        {% if user|has_permission:'attendance.manage' %}
+                        <th class="text-right px-3 py-2 font-medium"></th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for du in device_users_page %}
+                    <tr class="hover:bg-slate-50 {% if not du.is_hr_linked %}bg-amber-50/30{% endif %}">
+                        <td class="px-3 py-2 text-center text-slate-400">{{ device_users_page.start_index|add:forloop.counter0 }}</td>
+                        <td class="px-3 py-2">{{ du.device.name }}</td>
+                        <td class="px-3 py-2 font-mono" dir="ltr">{{ du.device_user_id }}</td>
+                        <td class="px-3 py-2 font-medium text-slate-900">{{ du.name|default:"—" }}</td>
+                        <td class="px-3 py-2 font-mono text-xs" dir="ltr">{{ du.card|default:"—" }}</td>
+                        <td class="px-3 py-2">
+                            {% if du.hr_employee_name %}
+                            <span class="text-emerald-700 font-medium">{{ du.hr_employee_name }}</span>
+                            {% if du.hr_employee_number %}
+                            <span class="block text-xs text-slate-500 font-mono" dir="ltr">{{ du.hr_employee_number }}</span>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-amber-600">غير مربوط</span>
+                            {% endif %}
+                        </td>
+                        {% if user|has_permission:'attendance.manage' %}
+                        <td class="px-3 py-2">
+                            <button type="button"
+                                @click="openEnrollForm({{ du.device_id }}, {{ du.device_user_id }}, '{{ du.device.name|escapejs }}', '{{ du.name|default:""|escapejs }}')"
+                                class="text-xs text-primary-600 hover:underline whitespace-nowrap">ربط موظف</button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{% if user|has_permission:'attendance.manage' %}7{% else %}6{% endif %}" class="px-4 py-10 text-center text-slate-500">
+                            {% if device_users_has_filters %}
+                            لا نتائج للبحث — غيّر الكلمات أو امسح الفلتر.
+                            {% else %}
+                            لا مستخدمين على الأجهزة بعد — نفّذ «مزامنة» أو «المستخدمون» من جدول الأجهزة.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if device_users_page.has_other_pages %}
+        <div class="px-4 py-3 border-t border-slate-100 flex justify-center">
+            <nav class="hr-pagination__nav" aria-label="ترقيم مستخدمي البصمة">
+                <div class="hr-pagination__controls">
+                    {% if device_users_page.has_previous %}
+                    <a href="?{% if users_querystring %}{{ users_querystring }}&{% endif %}users_page={{ device_users_page.previous_page_number }}#device-users-table"
+                       class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">السابق</a>
+                    {% else %}
+                    <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled" aria-disabled="true">السابق</span>
+                    {% endif %}
+                    <span class="hr-pagination__status">{{ device_users_page.number }}/{{ device_users_page.paginator.num_pages }}</span>
+                    {% if device_users_page.has_next %}
+                    <a href="?{% if users_querystring %}{{ users_querystring }}&{% endif %}users_page={{ device_users_page.next_page_number }}#device-users-table"
+                       class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">التالي</a>
+                    {% else %}
+                    <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled" aria-disabled="true">التالي</span>
+                    {% endif %}
+                </div>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <div x-show="toast" x-cloak x-transition class="hr-toast fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-md flex items-center text-sm" :class="toastOk ? 'hr-toast--success' : 'hr-toast--error'" x-text="toastMsg"></div>
+
+    {% include "pages/attendance/_device_modal.html" %}
+    {% if user|has_permission:'attendance.manage' %}
+    {% include "pages/attendance/_enrollment_modal.html" %}
+    {% include "pages/attendance/_agent_key_modal.html" %}
+    {% endif %}
+</div>
+
+<script>
+function biometricPage() {
+    const csrf = '{{ csrf_token }}';
+    return {
+        deviceModal: false,
+        enrollModal: false,
+        agentKeyModal: false,
+        agentKeyValue: '',
+        agentKeyDeviceId: '',
+        agentKeyMeta: '',
+        agentKeyConfigSnippet: '',
+        enrollFormKey: 0,
+        enrollForm: { device_id: '', device_user_id: '', device_name: '', user_name: '' },
+        loadingId: null,
+        toast: false,
+        toastOk: true,
+        toastMsg: '',
+        form: { original_device_id: '', device_id: '', name: '', ip: '', port: 4370, comm_key: 0, branch_id: '', is_active: true },
+        openDeviceForm(data) {
+            if (data) {
+                this.form = {
+                    original_device_id: data.id,
+                    device_id: data.id,
+                    name: data.name,
+                    ip: data.ip,
+                    port: data.port,
+                    comm_key: data.comm_key,
+                    branch_id: data.branch_id ? String(data.branch_id) : '',
+                    is_active: data.is_active,
+                };
+            } else {
+                this.form = { original_device_id: '', device_id: '', name: '', ip: '', port: 4370, comm_key: 0, branch_id: '', is_active: true };
+            }
+            this.deviceModal = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+        openEnrollForm(deviceId, userId, deviceName, userName) {
+            this.enrollForm = {
+                device_id: String(deviceId),
+                device_user_id: String(userId),
+                device_name: deviceName || '',
+                user_name: userName || '',
+            };
+            this.enrollFormKey += 1;
+            this.enrollModal = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+        showToast(ok, msg) {
+            this.toastOk = ok;
+            this.toastMsg = msg;
+            this.toast = true;
+            setTimeout(() => { this.toast = false; }, 5000);
+        },
+        closeAgentKeyModal() {
+            this.agentKeyModal = false;
+            this.agentKeyValue = '';
+            this.agentKeyConfigSnippet = '';
+        },
+        _buildAgentConfigSnippet(data) {
+            const origin = window.location.origin;
+            return [
+                `SERVER_URL=${origin}`,
+                `AGENT_API_KEY=${data.api_key}`,
+                `DEVICE_ID=${data.device_id}`,
+                `DEVICE_IP=${data.device_ip}`,
+                `DEVICE_PORT=${data.device_port}`,
+                `COMM_KEY=${data.comm_key || 0}`,
+                'AGENT_ID=branch-agent',
+                'POLL_INTERVAL_SEC=300',
+                'SYNC_ON_REQUEST_ONLY=false',
+                'INCREMENTAL=true',
+                'TIMEOUT_SEC=20',
+                'INGEST_BATCH_SIZE=150',
+                'INGEST_MAX_BODY_KB=600',
+            ].join('\n');
+        },
+        async copyAgentKey() {
+            if (!this.agentKeyValue) return;
+            try {
+                await navigator.clipboard.writeText(this.agentKeyValue);
+                this.showToast(true, 'تم نسخ المفتاح');
+            } catch (e) {
+                this.$refs.agentKeyInput?.select();
+                this.showToast(false, 'انسخ المفتاح يدوياً');
+            }
+        },
+        async copyAgentConfig() {
+            if (!this.agentKeyConfigSnippet) return;
+            try {
+                await navigator.clipboard.writeText(this.agentKeyConfigSnippet);
+                this.showToast(true, 'تم نسخ إعدادات config.env');
+            } catch (e) {
+                this.showToast(false, 'انسخ الإعدادات يدوياً');
+            }
+        },
+        async generateAgentKey(id, name, hasKey, ip, port) {
+            if (hasKey) {
+                const ok = window.confirm(
+                    `سيتم إلغاء مفتاح «${name}» (ID=${id}) الحالي وتوليد مفتاح جديد.\nهل تريد المتابعة؟`
+                );
+                if (!ok) return;
+            }
+            this.loadingId = id;
+            try {
+                const { status, data } = await this._postJson(`/attendance/devices/${id}/agent-key/`);
+                if (status === 403) {
+                    this.showToast(false, 'انتهت الجلسة — سجّل الدخول مرة أخرى');
+                    return;
+                }
+                if (!data.ok || !data.api_key) {
+                    this.showToast(false, data.error || data.message || 'فشل توليد المفتاح');
+                    return;
+                }
+                this.agentKeyValue = data.api_key;
+                this.agentKeyDeviceId = String(data.device_id);
+                this.agentKeyMeta = `الجهاز: ${data.device_name} — ID=${data.device_id} — ${data.device_ip}:${data.device_port}`;
+                this.agentKeyConfigSnippet = this._buildAgentConfigSnippet(data);
+                this.agentKeyModal = true;
+                this.$nextTick(() => lucide.createIcons());
+            } catch (e) {
+                this.showToast(false, 'خطأ في الاتصال بالخادم');
+            }
+            this.loadingId = null;
+        },
+        async _postJson(url) {
+            const r = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const text = await r.text();
+            try {
+                return { status: r.status, data: JSON.parse(text) };
+            } catch (e) {
+                return { status: r.status, data: { ok: false, error: 'استجابة غير متوقعة من الخادم' } };
+            }
+        },
+        async testDevice(id) {
+            this.loadingId = id;
+            try {
+                const { status, data } = await this._postJson(`/attendance/devices/${id}/test/`);
+                if (status === 403) {
+                    this.showToast(false, 'انتهت الجلسة — سجّل الدخول مرة أخرى');
+                    return;
+                }
+                this.showToast(data.ok, data.message || '');
+                if (data.ok) setTimeout(() => location.reload(), 1500);
+            } catch (e) {
+                this.showToast(false, 'خطأ في الاتصال بالخادم');
+            }
+            this.loadingId = null;
+        },
+        async syncUsers(id) {
+            this.loadingId = id;
+            try {
+                const { status, data } = await this._postJson(`/attendance/devices/${id}/sync-users/`);
+                if (status === 403) {
+                    this.showToast(false, 'انتهت الجلسة — سجّل الدخول مرة أخرى');
+                    return;
+                }
+                if (data.ok) {
+                    this.showToast(true, `تم سحب ${data.synced} مستخدم من الجهاز`);
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    this.showToast(false, data.error || 'فشل سحب المستخدمين');
+                }
+            } catch (e) {
+                this.showToast(false, 'خطأ في الاتصال بالخادم');
+            }
+            this.loadingId = null;
+        },
+        async syncDevice(id) {
+            this.loadingId = id;
+            try {
+                const { status, data } = await this._postJson(`/attendance/devices/${id}/sync/`);
+                if (status === 403) {
+                    this.showToast(false, 'انتهت الجلسة — سجّل الدخول مرة أخرى');
+                    return;
+                }
+                if (data.ok) {
+                    let msg = data.message || `تم استيراد ${data.imported} سجل (تخطي ${data.skipped})`;
+                    if (data.users_synced) msg += ` — ${data.users_synced} مستخدم`;
+                    this.showToast(data.imported > 0 || data.users_synced > 0, msg);
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    this.showToast(false, data.error || 'فشلت المزامنة');
+                }
+            } catch (e) {
+                this.showToast(false, 'خطأ في الاتصال بالخادم');
+            }
+            this.loadingId = null;
+        },
+    };
+}
+
+</script>
+{% endblock %}

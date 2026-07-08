@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}تقرير العمليات المجدول{% endblock %}
+{% block page_title %}تقرير العمليات المجدول{% endblock %}
+
+{% block content %}
+<div class="hr-ops-report max-w-5xl mx-auto space-y-4">
+
+    <header class="hr-ops-report__hero hr-glass-panel">
+        <div class="flex flex-wrap items-start justify-between gap-3 w-full">
+            <div class="hr-ops-report__hero-main">
+                <span class="hr-ops-report__hero-icon" aria-hidden="true">
+                    <i data-lucide="mail-check" class="w-5 h-5"></i>
+                </span>
+                <div class="min-w-0">
+                    <h1 class="hr-ops-report__title">تقرير العمليات المجدول</h1>
+                    <p class="hr-ops-report__subtitle">
+                        إرسال PDF يومي مخصّص لكل مدير — بريد إلكتروني و/أو واتساب.
+                    </p>
+                </div>
+            </div>
+            {% url 'web:list_branches' as branches_url %}
+            {% include 'components/glass_back_link.html' with back_url=branches_url show_label=True label='تهيئة النظام' aria_label='رجوع لتهيئة النظام' extra_class='shrink-0' %}
+        </div>
+
+        <div class="hr-ops-report__stats" aria-label="ملخص الإعدادات">
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">الإرسال التلقائي</span>
+                <span class="hr-ops-report__stat-value {% if schedule_status.is_enabled %}is-on{% else %}is-off{% endif %}">
+                    {% if schedule_status.is_enabled %}مفعّل{% else %}متوقف{% endif %}
+                </span>
+            </div>
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">وقت الإرسال</span>
+                <span class="hr-ops-report__stat-value" dir="ltr">{{ schedule_status.send_time_label }}</span>
+            </div>
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">واتساب</span>
+                <span class="hr-ops-report__stat-value {% if schedule_status.send_via_whatsapp and whatsapp_delivery %}is-on{% else %}is-off{% endif %}">
+                    {% if schedule_status.send_via_whatsapp and whatsapp_delivery %}جاهز{% elif schedule_status.send_via_whatsapp %}غير مضبوط{% else %}متوقف{% endif %}
+                </span>
+            </div>
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">أرقام واتساب</span>
+                <span class="hr-ops-report__stat-value">{{ schedule_status.whatsapp_recipient_count }}</span>
+            </div>
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">بريد المستلمين</span>
+                <span class="hr-ops-report__stat-value">{{ schedule_status.recipient_count }}</span>
+            </div>
+            <div class="hr-ops-report__stat">
+                <span class="hr-ops-report__stat-label">التوقيت</span>
+                <span class="hr-ops-report__stat-value" dir="ltr">{{ schedule_status.timezone }}</span>
+            </div>
+        </div>
+    </header>
+
+    <form method="post" id="operations-report-form" class="space-y-4" autocomplete="off">
+        {% csrf_token %}
+
+        <div class="hr-ops-report__layout">
+            <section class="hr-ops-report__section hr-glass-panel">
+                <div class="hr-ops-report__section-head">
+                    <span class="hr-ops-report__section-icon" aria-hidden="true">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="hr-ops-report__section-title">مستلمو التقرير</h2>
+                        <p class="hr-ops-report__section-desc">
+                            اربط بريداً أو جوال واتساب لكل دور ثم احفظ الإعدادات.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="hr-ops-report__recipients-shell hr-recipients-table-shell overflow-x-auto">
+                    <table class="hr-recipients-table w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="hr-recipients-table__role text-right px-4 py-2.5 font-semibold text-slate-700 w-[28%]">المسؤول</th>
+                                <th scope="col" class="hr-recipients-table__email text-right px-4 py-2.5 font-semibold text-slate-700">البريد الإلكتروني</th>
+                                <th scope="col" class="hr-recipients-table__phone text-right px-4 py-2.5 font-semibold text-slate-700">واتساب (جوال)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in recipient_rows %}
+                            <tr data-recipient-row="{{ row.key }}">
+                                <td class="hr-recipients-table__role px-4 py-2.5 font-medium text-slate-800 align-middle whitespace-nowrap">{{ row.label }}</td>
+                                <td class="hr-recipients-table__email px-4 py-2 align-middle">
+                                    <div class="hr-recipient-email-row flex items-center gap-2">
+                                        <button type="button"
+                                                class="hr-recipient-link-btn{% if row.saved_email %} is-linked{% endif %}"
+                                                data-role="{{ row.key }}"
+                                                data-channel="email"
+                                                title="{% if row.saved_email %}مربوط{% else %}ربط البريد{% endif %}"
+                                                aria-label="ربط البريد"
+                                                disabled>
+                                            <i data-lucide="{% if row.saved_email %}check{% else %}link-2{% endif %}"
+                                               class="hr-recipient-link-btn__icon"
+                                               aria-hidden="true"></i>
+                                        </button>
+                                        <div class="flex-1 min-w-0">
+                                            {{ row.field }}
+                                            {% if row.field.errors %}
+                                            <p class="text-xs text-rose-600 mt-1">{{ row.field.errors.0 }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="hr-recipients-table__phone px-4 py-2 align-middle">
+                                    <div class="hr-recipient-phone-row flex items-center gap-2">
+                                        <button type="button"
+                                                class="hr-recipient-link-btn hr-recipient-link-btn--whatsapp{% if row.saved_phone %} is-linked{% endif %}"
+                                                data-role="{{ row.key }}"
+                                                data-channel="whatsapp"
+                                                title="{% if row.saved_phone %}مربوط{% else %}ربط الجوال{% endif %}"
+                                                aria-label="ربط الجوال"
+                                                disabled>
+                                            <i data-lucide="{% if row.saved_phone %}check{% else %}smartphone{% endif %}"
+                                               class="hr-recipient-link-btn__icon"
+                                               aria-hidden="true"></i>
+                                        </button>
+                                        <div class="flex-1 min-w-0">
+                                            {{ row.phone_field }}
+                                            {% if row.phone_field.errors %}
+                                            <p class="text-xs text-rose-600 mt-1">{{ row.phone_field.errors.0 }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="hr-ops-report__aside-stack">
+                <section class="hr-ops-report__section hr-glass-panel">
+                    <div class="hr-ops-report__section-head">
+                        <span class="hr-ops-report__section-icon" aria-hidden="true">
+                            <i data-lucide="clock" class="w-4 h-4"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="hr-ops-report__section-title">الجدولة</h2>
+                            <p class="hr-ops-report__section-desc">حدّد وقت الإرسال اليومي وفعّل التشغيل التلقائي.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <label class="hr-ops-report__switch-card" for="id_send_via_whatsapp">
+                            {{ form.send_via_whatsapp }}
+                            <span class="hr-ops-report__switch-text">
+                                <span class="hr-ops-report__switch-title">إرسال عبر واتساب</span>
+                                <span class="hr-ops-report__switch-desc">
+                                    يرسل ملف PDF للأرقام المربوطة
+                                    {% if whatsapp_delivery %}— Evolution API جاهز{% else %}— يتطلب ضبط WHATSAPP_ENABLED{% endif %}.
+                                </span>
+                            </span>
+                        </label>
+
+                        <label class="hr-ops-report__switch-card" for="id_is_enabled">
+                            {{ form.is_enabled }}
+                            <span class="hr-ops-report__switch-text">
+                                <span class="hr-ops-report__switch-title">تفعيل الإرسال التلقائي</span>
+                                <span class="hr-ops-report__switch-desc">يرسل التقرير يومياً في الوقت المحدّد.</span>
+                            </span>
+                        </label>
+
+                        <div class="hr-ops-report__field">
+                            <label for="id_send_time" class="hr-ops-report__field-label">وقت الإرسال</label>
+                            {{ form.send_time }}
+                            <p class="hr-ops-report__field-hint">24 ساعة — يجب أن يطابق التوقيت المحلي للسيرفر.</p>
+                            {% if form.send_time.errors %}
+                            <p class="text-xs text-rose-600">{{ form.send_time.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="hr-ops-report__section hr-glass-panel">
+                    <div class="hr-ops-report__section-head">
+                        <span class="hr-ops-report__section-icon" aria-hidden="true">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="hr-ops-report__section-title">محتوى التقرير</h2>
+                            <p class="hr-ops-report__section-desc">اختر أنواع العمليات المُضمَّنة في ملف PDF.</p>
+                        </div>
+                    </div>
+
+                    <div class="hr-ops-report__options">
+                        <label class="hr-ops-report__option">
+                            {{ form.include_pending }}
+                            <span class="hr-ops-report__option-body">
+                                <span class="hr-ops-report__option-title">العمليات المعلّقة</span>
+                                <span class="hr-ops-report__option-desc">طلبات بانتظار الموافقة أو الإجراء.</span>
+                            </span>
+                        </label>
+                        <label class="hr-ops-report__option">
+                            {{ form.include_completed }}
+                            <span class="hr-ops-report__option-body">
+                                <span class="hr-ops-report__option-title">العمليات المُنجزة</span>
+                                <span class="hr-ops-report__option-desc">ما تم اعتماده في يوم التقرير فقط.</span>
+                            </span>
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="hr-ops-report__alert hr-ops-report__alert--error" role="alert">
+            {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+
+        <div class="hr-ops-report__actions">
+            <p class="hr-ops-report__actions-note">
+                احفظ الإعدادات لتفعيل الجدولة. «إرسال تجربة» في الأسفل للاختبار الفوري دون انتظار الموعد.
+            </p>
+            {% include "components/hr_btn.html" with label="حفظ الإعدادات" type="submit" name="action" value="save" variant="primary" icon="save" %}
+        </div>
+    </form>
+
+    <section class="hr-ops-report__section hr-glass-panel hr-ops-report__test">
+        <div class="hr-ops-report__section-head">
+            <span class="hr-ops-report__section-icon" aria-hidden="true">
+                <i data-lucide="send" class="w-4 h-4"></i>
+            </span>
+            <div class="min-w-0">
+                <h2 class="hr-ops-report__section-title">إرسال تجريبي</h2>
+                <p class="hr-ops-report__section-desc">اختبر التقرير فوراً — اترك الحقول فارغة للإرسال لجميع المستلمين المحفوظين.</p>
+            </div>
+        </div>
+
+        <form method="post" class="hr-ops-report__test-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="test_send">
+            <div class="hr-ops-report__test-grid">
+                <div class="hr-ops-report__test-field">
+                    <label class="hr-ops-report__field-label" for="test-recipient-email">بريد الاختبار (اختياري)</label>
+                    <input type="email"
+                           id="test-recipient-email"
+                           name="test_recipient"
+                           value=""
+                           class="hr-ops-report__test-input"
+                           dir="ltr"
+                           placeholder="example@company.com">
+                </div>
+                <div class="hr-ops-report__test-field">
+                    <label class="hr-ops-report__field-label" for="test-recipient-phone">جوال واتساب (اختياري)</label>
+                    <input type="tel"
+                           id="test-recipient-phone"
+                           name="test_recipient_phone"
+                           value=""
+                           class="hr-ops-report__test-input"
+                           dir="ltr"
+                           placeholder="0512345678">
+                </div>
+            </div>
+            {% include "components/hr_btn.html" with label="إرسال تجربة الآن" type="submit" variant="glass-sky" icon="refresh-cw" %}
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const LINK_URL = '{% url "web:operations_report_settings" %}';
+
+    function getCsrfToken() {
+        return document.querySelector('#operations-report-form [name=csrfmiddlewaretoken]')?.value || '';
+    }
+
+    function isValidEmail(value) {
+        const v = (value || '').trim();
+        return v.length > 3 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    }
+
+    function extractPhoneDigits(value) {
+        const map = {
+            '٠': '0', '١': '1', '٢': '2', '٣': '3', '۴': '4', '٤': '4',
+            '٥': '5', '۵': '5', '٦': '6', '۶': '6', '٧': '7', '۷': '7',
+            '٨': '8', '۸': '8', '٩': '9', '۹': '9',
+        };
+        return (value || '').trim().split('').map(function (ch) {
+            return map[ch] !== undefined ? map[ch] : ch;
+        }).join('').replace(/\D/g, '');
+    }
+
+    function isValidPhone(value) {
+        let d = extractPhoneDigits(value);
+        if (!d) return false;
+        if (d.startsWith('00')) d = d.slice(2);
+        const country = '966';
+        if (d.startsWith(country)) {
+            const local = d.slice(country.length);
+            return local.length === 9 && local.startsWith('5');
+        }
+        if (d.startsWith('0')) d = d.slice(1);
+        return d.length === 9 && d.startsWith('5');
+    }
+
+    function setLinkIcon(btn, linked, channel) {
+        const icon = btn.querySelector('.hr-recipient-link-btn__icon');
+        if (!icon) return;
+        if (channel === 'whatsapp') {
+            icon.setAttribute('data-lucide', linked ? 'check' : 'smartphone');
+        } else {
+            icon.setAttribute('data-lucide', linked ? 'check' : 'link-2');
+        }
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+    }
+
+    function updateRecipientRow(row) {
+        const emailInput = row.querySelector('.hr-recipient-email-input');
+        const phoneInput = row.querySelector('.hr-recipient-phone-input');
+
+        if (emailInput) {
+            const emailBtn = row.querySelector('.hr-recipient-link-btn[data-channel="email"]');
+            if (emailBtn) {
+                const email = emailInput.value.trim();
+                const saved = (emailInput.dataset.savedEmail || '').trim();
+                const linked = emailInput.dataset.linked === 'true' && email === saved && isValidEmail(email);
+                if (linked) {
+                    emailBtn.classList.add('is-linked');
+                    emailBtn.disabled = true;
+                    emailBtn.classList.remove('is-loading');
+                    setLinkIcon(emailBtn, true, 'email');
+                } else {
+                    emailBtn.classList.remove('is-linked');
+                    emailBtn.disabled = !isValidEmail(email);
+                    emailBtn.classList.remove('is-loading');
+                    setLinkIcon(emailBtn, false, 'email');
+                }
+            }
+        }
+
+        if (phoneInput) {
+            const phoneBtn = row.querySelector('.hr-recipient-link-btn[data-channel="whatsapp"]');
+            if (phoneBtn) {
+                const phone = phoneInput.value.trim();
+                const saved = (phoneInput.dataset.savedPhone || '').trim();
+                const linked = phoneInput.dataset.linked === 'true' && phone === saved && isValidPhone(phone);
+                if (linked) {
+                    phoneBtn.classList.add('is-linked');
+                    phoneBtn.disabled = true;
+                    phoneBtn.classList.remove('is-loading');
+                    setLinkIcon(phoneBtn, true, 'whatsapp');
+                } else {
+                    phoneBtn.classList.remove('is-linked');
+                    phoneBtn.disabled = !isValidPhone(phone);
+                    phoneBtn.classList.remove('is-loading');
+                    setLinkIcon(phoneBtn, false, 'whatsapp');
+                }
+            }
+        }
+    }
+
+    function initRecipientRows() {
+        document.querySelectorAll('[data-recipient-row]').forEach(function (row) {
+            const emailInput = row.querySelector('.hr-recipient-email-input');
+            const phoneInput = row.querySelector('.hr-recipient-phone-input');
+
+            if (emailInput) {
+                emailInput.addEventListener('input', function (event) {
+                    if (event.target !== emailInput) return;
+                    const saved = (emailInput.dataset.savedEmail || '').trim();
+                    if (emailInput.value.trim() !== saved) {
+                        emailInput.dataset.linked = 'false';
+                    }
+                    updateRecipientRow(row);
+                });
+            }
+
+            if (phoneInput) {
+                phoneInput.addEventListener('input', function (event) {
+                    if (event.target !== phoneInput) return;
+                    const saved = (phoneInput.dataset.savedPhone || '').trim();
+                    if (phoneInput.value.trim() !== saved) {
+                        phoneInput.dataset.linked = 'false';
+                    }
+                    updateRecipientRow(row);
+                });
+            }
+
+            updateRecipientRow(row);
+        });
+    }
+
+    async function linkRecipient(btn) {
+        const row = btn.closest('[data-recipient-row]');
+        if (!row) return;
+
+        const channel = btn.dataset.channel || 'email';
+        const roleKey = btn.dataset.role;
+        if (!roleKey) return;
+
+        let body;
+        if (channel === 'whatsapp') {
+            const input = row.querySelector('.hr-recipient-phone-input');
+            if (!input) return;
+            const phone = input.value.trim();
+            if (!isValidPhone(phone)) return;
+            body = new URLSearchParams({
+                csrfmiddlewaretoken: getCsrfToken(),
+                action: 'link_whatsapp_recipient',
+                role_key: roleKey,
+                phone: phone,
+            });
+        } else {
+            const input = row.querySelector('.hr-recipient-email-input');
+            if (!input) return;
+            const email = input.value.trim();
+            if (!isValidEmail(email)) return;
+            body = new URLSearchParams({
+                csrfmiddlewaretoken: getCsrfToken(),
+                action: 'link_recipient',
+                role_key: roleKey,
+                email: email,
+            });
+        }
+
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+
+        try {
+            const response = await fetch(LINK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: body.toString(),
+            });
+
+            const data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'تعذّر الربط.');
+            }
+
+            if (channel === 'whatsapp') {
+                const input = row.querySelector('.hr-recipient-phone-input');
+                if (input) {
+                    input.dataset.savedPhone = input.value.trim();
+                    input.dataset.linked = 'true';
+                }
+            } else {
+                const input = row.querySelector('.hr-recipient-email-input');
+                if (input) {
+                    input.dataset.savedEmail = input.value.trim();
+                    input.dataset.linked = 'true';
+                }
+            }
+            updateRecipientRow(row);
+        } catch (err) {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+            window.alert(err.message || 'تعذّر الربط.');
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        const btn = event.target.closest('.hr-recipient-link-btn');
+        if (!btn || btn.disabled || btn.classList.contains('is-linked')) return;
+        event.preventDefault();
+        linkRecipient(btn);
+    });
+
+    document.addEventListener('DOMContentLoaded', initRecipientRows);
+    if (document.readyState !== 'loading') {
+        initRecipientRows();
+    }
+})();
+</script>
+{% endblock %}

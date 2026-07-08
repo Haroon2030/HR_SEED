@@ -1,0 +1,38 @@
+{# نقل — title, transfer (dict من from_json), modal_uid #}
+<div class="inline-flex items-center shrink-0">
+    <template id="archive-transfer-html-{{ modal_uid }}">
+        <div class="hr-text-detail-modal__html-panel hr-text-detail-modal__html-panel--transfer">
+            {% if transfer.reason %}
+            <div class="hr-text-detail-transfer__reason">
+                <span class="hr-text-detail-transfer__reason-label">سبب النقل</span>
+                <p>{{ transfer.reason }}</p>
+            </div>
+            {% endif %}
+            <div class="hr-text-detail-transfer__row">
+                <i data-lucide="building-2" class="w-3.5 h-3.5 shrink-0"></i>
+                <span class="hr-text-detail-transfer__chip">{{ transfer.branch_from }}</span>
+                <i data-lucide="arrow-left" class="w-3.5 h-3.5 shrink-0"></i>
+                <span class="hr-text-detail-transfer__chip {% if transfer.branch_changed %}is-changed{% endif %}">{{ transfer.branch_to }}</span>
+                {% if not transfer.branch_changed %}<span class="hr-text-detail-transfer__muted">بدون تغيير</span>{% endif %}
+            </div>
+            <div class="hr-text-detail-transfer__row">
+                <i data-lucide="layers" class="w-3.5 h-3.5 shrink-0"></i>
+                <span class="hr-text-detail-transfer__chip">{{ transfer.dept_from }}</span>
+                <i data-lucide="arrow-left" class="w-3.5 h-3.5 shrink-0"></i>
+                <span class="hr-text-detail-transfer__chip {% if transfer.dept_changed %}is-changed{% endif %}">{{ transfer.dept_to }}</span>
+                {% if not transfer.dept_changed %}<span class="hr-text-detail-transfer__muted">بدون تغيير</span>{% endif %}
+            </div>
+        </div>
+    </template>
+    <button type="button"
+            class="hr-act hr-act--view"
+            title="عرض تفاصيل النقل"
+            aria-label="عرض تفاصيل {{ title }}"
+            data-hr-text-detail-open
+            data-hr-text-detail-icon="move"
+            data-hr-text-detail-title="{{ title }}"
+            data-hr-text-detail-label="تفاصيل النقل"
+            data-hr-text-detail-html-id="archive-transfer-html-{{ modal_uid }}">
+        <i data-lucide="eye" class="hr-act__icon"></i>
+    </button>
+</div>

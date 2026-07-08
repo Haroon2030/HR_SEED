@@ -1,0 +1,128 @@
+{# records: queryset أو list من EmployeeStatement — يُفلتر تلقائياً عند filter_salary=True #}
+{% load custom_tags l10n %}
+<div class="salary-adjust-archive">
+    <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="history" class="w-4 h-4 text-indigo-600"></i>
+            {{ title|default:"أرشيف تعديلات الراتب" }}
+        </h3>
+        {% if show_count %}
+        <span class="text-[11px] text-slate-500">العدد: <span class="font-bold text-slate-800" id="salary-archive-count-{{ section_id|default:'main' }}">—</span></span>
+        {% endif %}
+    </div>
+
+    <div class="border border-slate-200 rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm hr-archive-table">
+                <thead class="bg-slate-100 text-slate-600">
+                    <tr class="border-b border-slate-200">
+                        <th class="px-3 py-2 text-right font-semibold w-32">التاريخ والوقت</th>
+                        {% if show_type_col %}
+                        <th class="px-3 py-2 text-right font-semibold w-32">نوع العملية</th>
+                        {% endif %}
+                        <th class="px-3 py-2 text-right font-semibold">العنوان</th>
+                        <th class="px-3 py-2 text-right font-semibold w-40">المنفّذ</th>
+                        <th class="px-3 py-2 text-right font-semibold w-24">الحالة</th>
+                        <th class="px-3 py-2 text-center font-semibold w-14">عرض</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 salary-archive-rows">
+                    {% for st in records %}
+                    {% if not filter_salary or st.statement_type == 'salary_adjust' %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-3 py-2 align-top">
+                            <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                <span>{{ st.statement_date|date:"Y-m-d" }}</span>
+                                <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                <span class="text-slate-500">{{ st.created_at|date:"H:i" }}</span>
+                            </div>
+                        </td>
+                        {% if show_type_col %}
+                        <td class="px-3 py-2 align-top">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-100 text-indigo-700">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> تعديل راتب
+                            </span>
+                        </td>
+                        {% endif %}
+                        <td class="px-3 py-2 align-top">
+                            <div class="text-slate-800 font-medium text-xs truncate max-w-[14rem] sm:max-w-xs">{{ st.title }}</div>
+                            {% if st.content %}
+                            <template id="salary-detail-html-{{ st.id }}">
+                                <div class="hr-text-detail-modal__html-panel">
+                                    {% if '───' in st.content or '═══' in st.content %}
+                                    {{ st.content|format_archive_text }}
+                                    {% else %}
+                                    <div class="whitespace-pre-line leading-relaxed">{{ st.content }}</div>
+                                    {% endif %}
+                                </div>
+                            </template>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 align-top text-slate-600 text-xs">
+                            <i data-lucide="user" class="w-3 h-3 inline-block"></i>
+                            {{ st.created_by.get_full_name|default:st.created_by.username|default:"—" }}
+                        </td>
+                        <td class="px-3 py-2 align-top">
+                            <span class="px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-700">مُعدَّل</span>
+                        </td>
+                        <td class="px-3 py-2 align-top text-center">
+                            {% if st.content or st.document %}
+                            <button type="button"
+                                    class="hr-act hr-act--view mx-auto"
+                                    title="عرض التفاصيل"
+                                    aria-label="عرض التفاصيل"
+                                    data-hr-text-detail-open
+                                    data-hr-text-detail-icon="trending-up"
+                                    data-hr-text-detail-title="{{ st.title|escape }}"
+                                    data-hr-text-detail-label="التفاصيل"
+                                    {% if st.content %}data-hr-text-detail-html-id="salary-detail-html-{{ st.id }}"{% endif %}
+                                    data-hr-text-detail-meta='[{"label":"التاريخ","value":"{{ st.statement_date|date:"Y-m-d" }}","valueClass":"mono"},{"label":"الوقت","value":"{{ st.created_at|date:"H:i" }}","valueClass":"mono"},{"label":"المنفّذ","value":"{{ st.created_by.get_full_name|default:st.created_by.username|default:"—"|escapejs }}","span":"2"}]'
+                                    {% if st.document %}data-hr-text-detail-attachment="{{ st.document.url }}"{% endif %}>
+                                <i data-lucide="eye" class="hr-act__icon"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-slate-300 text-xs">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% empty %}
+                    <tr class="salary-archive-empty">
+                        <td colspan="{% if show_type_col %}6{% else %}5{% endif %}" class="px-3 py-8 text-center">
+                            <div class="inline-flex flex-col items-center gap-2 text-slate-400">
+                                <i data-lucide="archive-x" class="w-8 h-8"></i>
+                                <span class="text-xs">{{ empty_text|default:"لا بيانات" }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var root = document.currentScript && document.currentScript.previousElementSibling;
+    if (!root || !root.classList.contains('salary-adjust-archive')) {
+        root = document.querySelector('.salary-adjust-archive:last-of-type');
+    }
+    if (!root) return;
+    var tbody = root.querySelector('.salary-archive-rows');
+    if (!tbody) return;
+    var rows = tbody.querySelectorAll('tr:not(.salary-archive-empty)');
+    var empty = tbody.querySelector('.salary-archive-empty');
+    if (rows.length === 0 && !empty) {
+        var colSpan = root.querySelector('thead th') ? root.querySelectorAll('thead th').length : 6;
+        var tr = document.createElement('tr');
+        tr.className = 'salary-archive-empty';
+        tr.innerHTML = '<td colspan="' + colSpan + '" class="px-3 py-8 text-center">' +
+            '<div class="inline-flex flex-col items-center gap-2 text-slate-400">' +
+            '<span class="text-xs">لا توجد تعديلات راتب مسجّلة</span></div></td>';
+        tbody.appendChild(tr);
+    }
+    var counter = root.querySelector('[id^="salary-archive-count-"]');
+    if (counter) counter.textContent = String(rows.length);
+})();
+</script>

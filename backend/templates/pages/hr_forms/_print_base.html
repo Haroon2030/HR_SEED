@@ -1,0 +1,718 @@
+{# قالب أساسي لكل النماذج الرسمية القابلة للطباعة #}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ form_meta.title }} — {{ employee.name }}</title>
+    <link rel="preload" href="/static/fonts/cairo/SLXVc1nY6HkvangtZmpQdkhzfH5lkSscQyyS4J0.woff2" as="font" type="font/woff2" crossorigin>
+    <link href="/static/fonts/cairo/cairo.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { margin: 0; background: #f1f5f9; color: #0f172a; }
+        .toolbar {
+            position: sticky; top: 0; z-index: 50;
+            background: #ffffff; color: #0f172a;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        }
+        .toolbar h1 {
+            margin: 0; font-size: 14px; font-weight: 600; color: #334155;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .toolbar h1::before {
+            content: ""; width: 4px; height: 18px; background: #2563eb;
+            border-radius: 2px; display: inline-block;
+        }
+        .toolbar .actions { display: flex; gap: 6px; }
+        .btn {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid transparent;
+            cursor: pointer;
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none; transition: all .15s;
+        }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-secondary {
+            background: #fff; color: #475569; border-color: #e2e8f0;
+        }
+        .btn-secondary:hover { background: #f8fafc; color: #0f172a; }
+
+        .page {
+            background: #fff; max-width: 21cm; min-height: 29.7cm;
+            margin: 24px auto; padding: 2.2cm 2cm 2.6cm 2cm;
+            box-shadow: 0 4px 20px rgba(0,0,0,.08);
+            position: relative;
+        }
+
+        /* Letterhead — عنوان يمين، سجل تجاري يسار، في صف واحد */
+        .letterhead {
+            margin-bottom: 28px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #000;
+        }
+        .letterhead__row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+        }
+        .letterhead__brand {
+            flex: 1 1 auto;
+            min-width: 0;
+            text-align: right;
+        }
+        .letterhead__regs {
+            flex: 0 0 auto;
+            text-align: left;
+            direction: ltr;
+            font-size: 11px;
+            color: #000;
+            line-height: 1.65;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .letterhead__regs .line { margin: 0; }
+        .letterhead__regs strong { font-weight: 700; font-size: 13px; }
+        .letterhead__regs .line--unified-nn strong { font-size: 15px; }
+        .letterhead__name-ar {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 800;
+            color: #C5A028;
+            line-height: 1.3;
+            letter-spacing: 0.01em;
+            text-align: right;
+            direction: rtl;
+            unicode-bidi: plaintext;
+        }
+
+        /* Document title */
+        .doc-title {
+            text-align: center;
+            margin: 24px 0 28px;
+        }
+        .doc-title h2 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 800;
+            color: #1e3a8a;
+        }
+        .doc-meta {
+            display: flex; justify-content: space-between;
+            font-size: 13px; color: #334155; margin-bottom: 24px;
+        }
+        .doc-meta .date-picker {
+            font-family: inherit; font-size: 13px; color: #0f172a;
+            padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px;
+            background: #fff; cursor: pointer;
+        }
+        .doc-meta .date-picker:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
+        .doc-meta .serial-no {
+            font-family: 'Courier New', ui-monospace, monospace;
+            font-weight: 700; letter-spacing: 0.5px; color: #1e3a8a;
+            background: #eff6ff; padding: 2px 8px; border-radius: 4px;
+            border: 1px solid #dbeafe;
+        }
+
+        /* Sections */
+        .section { margin-bottom: 22px; }
+        .section h3 {
+            font-size: 15px; font-weight: 700; color: #1e3a8a;
+            border-right: 4px solid #2563eb; padding-right: 10px;
+            margin: 0 0 12px 0;
+        }
+
+        /* Info grid */
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 13.5px; }
+        .info-grid .row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px dotted #cbd5e1; }
+        .info-grid .row .label { font-weight: 600; color: #475569; min-width: 110px; }
+        .info-grid .row .value { color: #0f172a; flex: 1; font-weight: 500; }
+
+        /* Form fields (blank lines for handwriting) */
+        .field { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; font-size: 14px; }
+        .field .label { font-weight: 600; color: #334155; white-space: nowrap; }
+        .field .blank {
+            flex: 1; border: none; border-bottom: 1.5px dotted #94a3b8;
+            min-height: 24px; padding: 2px 6px; background: #fffefb;
+            font-family: inherit; font-size: 14px; color: #0f172a; outline: none;
+        }
+        .field .blank:focus { background: #eff6ff; border-bottom-color: #2563eb; border-bottom-style: solid; }
+        .field .blank-select {
+            flex: 1; min-height: 28px; padding: 4px 8px;
+            border: 1px solid #cbd5e1; border-radius: 6px;
+            background: #fff; font-family: inherit; font-size: 14px;
+            color: #0f172a; cursor: pointer; outline: none;
+        }
+        .field .blank-select:focus {
+            background: #eff6ff; border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        }
+        .blank-block {
+            display: block; width: 100%;
+            border: 1.5px dotted #94a3b8; border-radius: 4px;
+            min-height: 80px; padding: 8px; margin-top: 6px;
+            background: #fffefb; font-family: inherit; font-size: 14px;
+            color: #0f172a; resize: vertical; outline: none;
+        }
+        .blank-block:focus { background: #eff6ff; border-color: #2563eb; border-style: solid; }
+
+        .checkbox-row { display: flex; gap: 24px; flex-wrap: wrap; margin: 8px 0; font-size: 14px; }
+        .checkbox-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+        .checkbox-row .box {
+            display: inline-block; width: 14px; height: 14px;
+            border: 1.5px solid #475569; border-radius: 3px;
+            margin: 0; padding: 0; vertical-align: middle;
+            -webkit-appearance: none; appearance: none;
+            background: #fff; cursor: pointer; position: relative;
+        }
+        .checkbox-row .box:checked {
+            background: #2563eb; border-color: #2563eb;
+        }
+        .checkbox-row .box:checked::after {
+            content: "✓"; color: #fff; font-size: 11px; font-weight: 700;
+            position: absolute; top: -2px; left: 1.5px;
+        }
+
+        /* ملاحظة/سبب الإلكترونية الملحقة بكل مجموعة اختيارات */
+        .choice-note {
+            margin-top: 10px;
+            display: flex; gap: 8px; align-items: flex-start;
+            font-size: 13px;
+        }
+        .choice-note label {
+            font-weight: 600; color: #475569; padding-top: 8px; white-space: nowrap;
+        }
+        .choice-note textarea {
+            flex: 1; min-height: 48px; padding: 6px 8px;
+            border: 1.5px dotted #94a3b8; border-radius: 4px;
+            background: #fffefb; font-family: inherit; font-size: 13px;
+            color: #0f172a; resize: vertical; outline: none;
+        }
+        .choice-note textarea:focus { background: #eff6ff; border-color: #2563eb; border-style: solid; }
+
+        /* Signatures */
+        .signatures {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+            margin-top: 48px; padding-top: 16px;
+        }
+        .sig-box { text-align: center; font-size: 13px; }
+        .sig-box .role { font-weight: 700; color: #1e3a8a; margin-bottom: 40px; }
+        .sig-box .line { border-top: 1.5px solid #475569; padding-top: 6px; }
+        .sig-box .name-blank { color: #64748b; font-size: 12px; }
+
+        /* Acknowledgement / clause boxes */
+        .clause {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 6px; padding: 14px 16px; margin: 12px 0;
+            font-size: 13.5px; line-height: 1.9; color: #334155;
+        }
+
+        /* Footer — تذييل الخطاب الرسمي */
+        .doc-footer {
+            position: absolute;
+            bottom: 0.8cm;
+            left: 1.2cm;
+            right: 1.2cm;
+            text-align: center;
+            color: #0f172a;
+            padding-top: 0;
+            border-top: none;
+        }
+        .doc-footer__ar {
+            margin: 0 0 3px;
+            font-size: 10px;
+            line-height: 1.45;
+            font-weight: 600;
+            direction: rtl;
+        }
+        .doc-footer__en {
+            margin: 0;
+            font-size: 9px;
+            line-height: 1.4;
+            font-weight: 500;
+            direction: ltr;
+            font-family: Arial, Helvetica, sans-serif;
+            letter-spacing: 0.01em;
+        }
+        .doc-footer__system {
+            margin: 10px 0 0;
+            font-size: 10px;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 8px;
+        }
+
+        .print-only { display: none !important; }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .hr-form-bank-select {
+            display: inline-block;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            min-width: 0;
+            width: auto;
+            max-width: 240px;
+            vertical-align: baseline;
+        }
+
+        /* سطر «السادة / البنك المحترمين» */
+        .hr-form-bank-address { margin-bottom: 28px; }
+        .hr-form-bank-address__line {
+            display: block;
+            margin: 0;
+            padding: 0;
+            text-align: right;
+            direction: rtl;
+            white-space: nowrap;
+            font-size: 14.5px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.8;
+        }
+        .hr-form-bank-address__prefix,
+        .hr-form-bank-address__suffix,
+        .hr-form-bank-address__print-name {
+            display: inline;
+            vertical-align: baseline;
+            white-space: nowrap;
+        }
+        .hr-form-bank-address__form {
+            border: none;
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font: inherit;
+            color: inherit;
+        }
+        .hr-form-bank-address__print-name {
+            font-size: 15px;
+            font-weight: 800;
+            color: #1e3a8a;
+            margin: 0 4px;
+        }
+        .hr-form-bank-select {
+            display: inline-block;
+            vertical-align: baseline;
+            margin: 0 4px;
+        }
+        input.blank.hr-form-bank-address__name {
+            display: inline-block;
+            vertical-align: baseline;
+            margin: 0 4px;
+            min-width: 120px;
+            max-width: 220px;
+            text-align: right;
+            font-weight: 800;
+            color: #1e3a8a;
+            border-bottom-style: solid;
+            border-bottom-color: #94a3b8;
+        }
+
+        .hr-form-profession-select {
+            font-family: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            min-width: 160px;
+            max-width: 100%;
+            color: #1e3a8a;
+        }
+        .hr-form-profession-form { display: block; }
+
+        .hr-form-date-form { display: block; }
+        .hr-form-date-field {
+            font-family: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #0f172a;
+            min-width: 150px;
+        }
+        .hr-form-date-print { font-weight: 700; color: #0f172a; }
+
+        .hr-form-iban.blank,
+        input.blank.hr-form-iban {
+            font-family: 'Courier New', ui-monospace, monospace;
+            letter-spacing: 0.04em;
+            direction: ltr;
+            text-align: left;
+            min-width: 220px;
+        }
+        .hr-form-amount.blank,
+        input.blank.hr-form-amount {
+            direction: ltr;
+            text-align: left;
+            min-width: 100px;
+            font-weight: 700;
+        }
+        .hr-form-work-id.blank,
+        input.blank.hr-form-work-id {
+            direction: ltr;
+            text-align: left;
+            min-width: 140px;
+            font-weight: 700;
+        }
+        .hr-form-pen-field.blank,
+        input.blank.hr-form-pen-field {
+            min-width: 120px;
+            font-weight: 600;
+        }
+        .hr-form-inline-pen.blank,
+        input.blank.hr-form-inline-pen {
+            display: inline-block;
+            min-width: 100px;
+            font-weight: 700;
+            vertical-align: baseline;
+        }
+        .letterhead__name-ar input.blank.hr-form-letterhead-name {
+            display: inline-block;
+            width: min(100%, 520px);
+            font-size: 28px;
+            font-weight: 800;
+            color: #C5A028;
+            border: none;
+            border-bottom: 2px dotted #c4a84a;
+            border-radius: 0;
+            background: transparent;
+            padding: 0 4px 2px;
+            text-align: right;
+            direction: rtl;
+        }
+        .letterhead__regs input.blank {
+            display: inline-block;
+            min-width: 90px;
+            font-weight: 700;
+            border: none;
+            border-bottom: 1px dotted #94a3b8;
+            background: transparent;
+            padding: 0 2px;
+        }
+        table .hr-form-table-cell--pen input.blank,
+        table .hr-form-table-cell--amount input.blank {
+            display: block;
+            width: 100%;
+            min-height: 30px;
+            margin: 0 auto;
+            text-align: center;
+            border: none;
+            border-bottom: 1.5px dotted #94a3b8;
+            border-radius: 0;
+            background: #fffefb;
+            font-family: inherit;
+            font-size: 13.5px;
+            color: #0f172a;
+        }
+        table .hr-form-table-cell--pen input.blank {
+            text-align: right;
+        }
+        table .hr-form-table-cell--amount input.blank.hr-form-salary-cell {
+            font-weight: 700;
+        }
+        table .hr-form-table-cell--amount input.blank.hr-form-salary-cell--total {
+            font-weight: 800;
+            color: #166534;
+        }
+
+        /* Print-only — صفحة واحدة A4 */
+        @media print {
+            html, body {
+                background: #fff;
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 0;
+            }
+            .toolbar { display: none !important; }
+            .no-print { display: none !important; }
+            .print-only { display: inline !important; }
+            .no-print { display: none !important; }
+            .hr-form-screen-link { display: none !important; }
+            .page {
+                box-shadow: none; margin: 0; max-width: none;
+                width: 210mm; height: 297mm; min-height: 0;
+                padding: 10mm 12mm 22mm 12mm;
+                page-break-after: avoid; page-break-inside: avoid;
+                overflow: hidden;
+                font-size: 11.5px;
+            }
+            @page { size: A4 portrait; margin: 0; }
+
+            /* تصغير العناصر للطباعة */
+            .letterhead { margin-bottom: 12px; padding-bottom: 8px; }
+            .letterhead__row { gap: 12px; }
+            .letterhead__regs { font-size: 9px; line-height: 1.45; }
+            .letterhead__regs strong { font-size: 11px; }
+            .letterhead__regs .line--unified-nn strong { font-size: 13px; }
+            .letterhead__name-ar {
+                font-size: 16px;
+                color: #B8941F !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .doc-title { margin: 8px 0 12px; }
+            .doc-title h2 { font-size: 16px; }
+            .doc-meta { font-size: 10.5px; margin-bottom: 10px; }
+            .doc-meta .date-picker {
+                border: none; padding: 0; background: transparent;
+                font-size: 10.5px; color: #0f172a; -webkit-appearance: none; appearance: none;
+            }
+            .doc-meta .date-picker::-webkit-calendar-picker-indicator { display: none; }
+            .doc-meta .serial-no {
+                background: transparent; border: none; padding: 0;
+                font-size: 10.5px; color: #0f172a; font-weight: 700;
+            }
+
+            .section { margin-bottom: 10px; }
+            .section h3 { font-size: 12.5px; margin-bottom: 6px; padding-right: 8px; }
+
+            .info-grid { gap: 2px 16px; font-size: 11px; }
+            .info-grid .row { padding: 2px 0; }
+
+            .field { margin-bottom: 6px; font-size: 11px; }
+            .blank-block { min-height: 38px !important; padding: 4px; }
+
+            .checkbox-row { gap: 14px; margin: 4px 0; font-size: 11px; }
+            .checkbox-row .box { width: 11px; height: 11px; }
+            .checkbox-row .box:checked::after { font-size: 9px; top: -3px; left: 1px; }
+
+            .choice-note { margin-top: 4px; font-size: 10.5px; }
+            .choice-note textarea {
+                min-height: 22px; padding: 3px 5px;
+                border: none; border-bottom: 1px dotted #94a3b8;
+                background: transparent; border-radius: 0;
+            }
+
+            /* في الطباعة: أبقِ الحقول مرئية بدون خلفية ولا حدود زائدة */
+            .field .blank, .blank-block, .field .blank-select {
+                background: transparent !important;
+                border: none !important;
+                border-bottom: 1px dotted #94a3b8 !important;
+                border-radius: 0 !important;
+                outline: none !important;
+                box-shadow: none !important;
+                resize: none !important;
+                font-size: 11px !important;
+                padding: 1px 4px !important;
+            }
+            .field .blank-select {
+                -webkit-appearance: none;
+                appearance: none;
+            }
+            .blank-block {
+                border: 1px dotted #94a3b8 !important;
+                min-height: 36px !important;
+            }
+
+            .clause { padding: 8px 10px; margin: 6px 0; font-size: 11px; line-height: 1.55; }
+
+            .hr-form-bank-address { margin-bottom: 14px; }
+            .hr-form-bank-address__line {
+                font-size: 12px;
+                white-space: nowrap;
+            }
+            .hr-form-bank-address__print-name { font-size: 12.5px; font-weight: 800; color: #0f172a; }
+            .hr-form-bank-select {
+                border: none;
+                padding: 0;
+                margin: 0 2px;
+                background: transparent;
+                font-size: 12px;
+                max-width: none;
+            }
+            .hr-form-profession-select {
+                -webkit-appearance: none;
+                appearance: none;
+                border: none;
+                padding: 0;
+                background: transparent;
+                font-size: 11px;
+            }
+            .hr-form-date-field {
+                border: none;
+                padding: 0;
+                background: transparent;
+                font-size: 11px;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+            .hr-form-date-field::-webkit-calendar-picker-indicator { display: none; }
+            input.blank.hr-form-iban {
+                border: none;
+                background: transparent;
+                padding: 0;
+                font-size: 11px;
+            }
+
+            .signatures { gap: 12px; margin-top: 18px; padding-top: 8px; }
+            .sig-box { font-size: 10.5px; }
+            .sig-box .role { margin-bottom: 22px; }
+
+            table { font-size: 10.5px !important; }
+            table th, table td { padding: 4px 6px !important; }
+
+            .doc-footer {
+                position: absolute;
+                bottom: 6mm;
+                left: 10mm;
+                right: 10mm;
+                padding-top: 0;
+                border-top: none;
+            }
+            .doc-footer__ar { font-size: 8.5px; margin-bottom: 2px; }
+            .doc-footer__en { font-size: 7.5px; }
+            .doc-footer__system { display: none !important; }
+
+            /* لا تكسر العناصر الداخلية */
+            .section, .clause, .signatures, table { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <h1>{% firstof form_meta.print_title form_meta.title %} — {{ employee.name }}</h1>
+        <div class="actions">
+            <button class="btn btn-primary" onclick="window.print()">
+                طباعة 🖨
+            </button>
+            <a class="btn btn-secondary" href="{% if form_back_url %}{{ form_back_url }}{% else %}{% url 'web:hr_forms_index' %}{% endif %}">
+                ← رجوع
+            </a>
+        </div>
+    </div>
+
+    <div class="page">
+        {% block letterhead %}{% include "pages/hr_forms/_hr_form_letterhead.html" %}{% endblock %}
+
+        {# Document title #}
+        <div class="doc-title">
+            <h2>{% block doc_title %}{% firstof form_meta.print_title form_meta.title %}{% endblock %}</h2>
+        </div>
+
+        <div class="doc-meta">
+            <span class="doc-meta-date">
+                التاريخ:
+                <input type="date" class="date-picker" value="{% now 'Y-m-d' %}" aria-label="تاريخ النموذج">
+            </span>
+            <span class="doc-meta-serial">
+                رقم النموذج: <span class="serial-no">{{ form_serial }}</span>
+            </span>
+        </div>
+
+        {% block body %}{% endblock %}
+
+        <div class="doc-footer">
+            <p class="doc-footer__ar">{{ letter_footer_ar }}</p>
+            <p class="doc-footer__en">{{ letter_footer_en }}</p>
+            <p class="doc-footer__system no-print">
+                تم الإنشاء من نظام الموارد البشرية{% if letterhead_name %} — {{ letterhead_name }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // ── تحويل النماذج إلى تعبئة إلكترونية ─────────────────────────────
+        // كل <span class="blank"></span> → input نصي (أو date إذا كان عنوانه يدل على تاريخ)
+        const DATE_HINTS = ['تاريخ', 'بتاريخ', 'بدء', 'انتهاء', 'إلى:', 'من:'];
+        document.querySelectorAll('span.blank').forEach(el => {
+            const labelText = (el.dataset.label || el.previousElementSibling?.textContent || '').trim();
+            const forceText = el.dataset.inputType === 'text' || el.classList.contains('hr-form-pen-field');
+            const isDate = !forceText && DATE_HINTS.some(h => labelText.includes(h));
+            const inp = document.createElement('input');
+            inp.type = isDate ? 'date' : 'text';
+            inp.className = 'blank'
+                + (el.classList.contains('hr-form-iban') ? ' hr-form-iban' : '')
+                + (el.classList.contains('hr-form-amount') ? ' hr-form-amount' : '')
+                + (el.classList.contains('hr-form-work-id') ? ' hr-form-work-id' : '')
+                + (el.classList.contains('hr-form-pen-field') ? ' hr-form-pen-field' : '')
+                + (el.classList.contains('hr-form-inline-pen') ? ' hr-form-inline-pen' : '')
+                + (el.classList.contains('hr-form-salary-cell') ? ' hr-form-salary-cell' : '')
+                + (el.classList.contains('hr-form-salary-cell--total') ? ' hr-form-salary-cell--total' : '')
+                + (el.classList.contains('hr-form-bank-address__name') ? ' hr-form-bank-address__name' : '');
+            inp.setAttribute('aria-label', labelText || 'حقل');
+            if (el.classList.contains('hr-form-iban') || (el.getAttribute('dir') === 'ltr' && !el.classList.contains('hr-form-bank-address__name'))) {
+                inp.setAttribute('dir', 'ltr');
+                inp.style.textAlign = 'left';
+            }
+            if (el.classList.contains('hr-form-amount')) {
+                inp.setAttribute('inputmode', 'decimal');
+            }
+            let val = el.textContent.trim();
+            const placeholder = el.dataset.placeholder;
+            if (placeholder && !val) {
+                inp.placeholder = placeholder;
+            }
+            if (val) {
+                if (isDate) {
+                    // Try to format to YYYY-MM-DD if it's a date
+                    let d = new Date(val);
+                    if (!isNaN(d)) {
+                        inp.value = d.toISOString().split('T')[0];
+                    } else {
+                        inp.type = 'text'; // Fallback if invalid date format
+                        inp.value = val;
+                    }
+                } else {
+                    inp.value = val;
+                }
+            }
+            
+            el.replaceWith(inp);
+        });
+        // كل <div class="blank-block"></div> → textarea
+        document.querySelectorAll('div.blank-block').forEach(el => {
+            const ta = document.createElement('textarea');
+            ta.className = 'blank-block';
+            if (el.style.minHeight) ta.style.minHeight = el.style.minHeight;
+            ta.value = el.textContent.trim(); // Preserve existing value
+            el.replaceWith(ta);
+        });
+        // كل <span class="box"></span> داخل label → checkbox فعلي
+        document.querySelectorAll('label > span.box').forEach(el => {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'box';
+            el.replaceWith(cb);
+        });
+        // إضافة مربع "ملاحظة / سبب" إلكتروني تحت كل مجموعة اختيارات
+        document.querySelectorAll('.checkbox-row').forEach(row => {
+            if (row.dataset.skipChoiceNote !== undefined) return;
+            if (row.nextElementSibling?.classList?.contains('choice-note')) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'choice-note';
+            wrap.innerHTML = '<label>سبب / ملاحظة:</label><textarea placeholder="اكتب السبب أو الملاحظة هنا..."></textarea>';
+            row.after(wrap);
+        });
+
+        // Auto-focus print on load if ?auto_print=1
+        if (new URLSearchParams(window.location.search).get('auto_print') === '1') {
+            window.addEventListener('load', () => setTimeout(() => window.print(), 400));
+        }
+    </script>
+    {% block form_scripts %}{% endblock %}
+</body>
+</html>

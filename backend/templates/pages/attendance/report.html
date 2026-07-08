@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}تقرير البصمة{% endblock %}
+
+{% block content %}
+{% include "pages/attendance/_report_styles.html" %}
+
+<div class="hr-report space-y-3" dir="rtl"
+     x-data="{
+        tab: {% if request.GET.punches_page %}'detail'{% else %}'daily'{% endif %},
+        adv: {% if filters.device_id or mapped_filter != 'all' or filter_employee %}true{% else %}false{% endif %},
+        hasAdv: {% if filters.device_id or mapped_filter != 'all' or filter_employee %}true{% else %}false{% endif %}
+     }">
+
+    <div class="hr-report-top">
+        <div>
+            <nav class="hr-report-crumb">
+                <a href="{% url 'web:biometric_devices' %}">أجهزة البصمة</a>
+                <i data-lucide="chevron-left" class="w-3 h-3"></i>
+                <span>تقرير</span>
+            </nav>
+            <h1>تقرير البصمة</h1>
+        </div>
+        <div class="hr-report-actions">
+            {% url 'web:attendance_report_export' as report_export_url %}
+            {% with export_href=report_export_url|add:"?"|add:querystring %}
+            {% include "components/hr_btn.html" with href=export_href label="Excel" variant="success" icon="file-spreadsheet" %}
+            {% endwith %}
+            {% url 'web:attendance_records' as records_url %}
+            {% with records_href=records_url|add:"?"|add:querystring %}
+            {% include "components/hr_btn.html" with href=records_href label="السجلات" variant="soft-slate" icon="list" %}
+            {% endwith %}
+        </div>
+    </div>
+
+    <div class="hr-report-kpis">
+        <div class="hr-report-kpi">
+            <p class="lbl">إجمالي البصمات</p>
+            <p class="val text-primary-700">{{ summary.total_punches }}</p>
+        </div>
+        <div class="hr-report-kpi">
+            <p class="lbl">أيام عمل</p>
+            <p class="val">{{ summary.total_days }}</p>
+        </div>
+        <div class="hr-report-kpi">
+            <p class="lbl">مكتمل</p>
+            <p class="val text-emerald-700">{{ summary.complete }}</p>
+        </div>
+        <div class="hr-report-kpi">
+            <p class="lbl">يحتاج متابعة</p>
+            {% with issues=summary.single_punch|add:summary.incomplete|add:summary.unmapped %}
+            <p class="val text-amber-700">{{ issues }}</p>
+            <p class="sub">غير مربوط {{ summary.unmapped }} · بصمة واحدة {{ summary.single_punch }}</p>
+            {% endwith %}
+        </div>
+    </div>
+
+    <form method="get" class="hr-report-filter">
+        <div class="hr-filter-grid hr-filter-grid--main">
+            <div class="hr-filter-slot hr-filter-slot--period">
+                <span class="hr-filter-slot__title">الفترة</span>
+                <div class="hr-filter-slot__row">
+                    <div class="hr-filter-cell">
+                        <label class="hr-report-lbl">من</label>
+                        <input type="date" name="from" value="{{ filters.date_from|default:'' }}" class="hr-report-field">
+                    </div>
+                    <div class="hr-filter-cell">
+                        <label class="hr-report-lbl">إلى</label>
+                        <input type="date" name="to" value="{{ filters.date_to|default:'' }}" class="hr-report-field">
+                    </div>
+                </div>
+            </div>
+            <div class="hr-filter-slot">
+                <span class="hr-filter-slot__title">الفرع</span>
+                {% include "components/filter_multiselect.html" with name="branch" items=branches selected_ids=filters.branch_ids field_class="hr-report-field" aria_label="الفرع" %}
+            </div>
+            <div class="hr-filter-slot">
+                <span class="hr-filter-slot__title">بحث</span>
+                <input type="text" name="q" value="{{ filters.search }}" placeholder="اسم موظف، رقم، أو جهاز…" class="hr-report-field" autocomplete="off">
+            </div>
+            <div class="hr-filter-slot hr-filter-slot--actions">
+                <span class="hr-filter-slot__title hr-filter-slot__title--muted">إجراءات</span>
+                <div class="hr-filter-actions">
+                    <button type="button" class="hr-report-filter-toggle"
+                            :class="{ 'is-active': adv }"
+                            @click="adv = !adv">
+                        <span class="dot" x-show="hasAdv" x-cloak></span>
+                        <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+                        فلاتر
+                    </button>
+                    <div class="hr-filter-form flex items-center gap-1">
+                        {% url 'web:attendance_report' as report_clear_url %}
+                        {% include "components/filter_actions.html" with clear_url=report_clear_url %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hr-filter-grid hr-filter-grid--adv" x-show="adv" x-cloak>
+            <div class="hr-filter-slot">
+                <label class="hr-report-lbl">جهاز البصمة</label>
+                <select name="device" class="hr-filter-select hr-report-field">
+                    <option value="">الكل</option>
+                    {% for d in devices %}
+                    <option value="{{ d.pk }}" {% if filters.device_id == d.pk %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="hr-filter-slot">
+                <label class="hr-report-lbl">ربط HR</label>
+                <select name="mapped" class="hr-filter-select hr-report-field">
+                    <option value="" {% if mapped_filter == 'all' %}selected{% endif %}>الكل</option>
+                    <option value="1" {% if mapped_filter == 'yes' %}selected{% endif %}>مربوط</option>
+                    <option value="0" {% if mapped_filter == 'no' %}selected{% endif %}>غير مربوط</option>
+                </select>
+            </div>
+            <div class="hr-filter-slot hr-filter-slot--employee">
+                {% include "components/employee_search_picker.html" with label="موظف محدد" input_name="employee" filter_employee=filter_employee employee_search_url=employee_search_url %}
+            </div>
+        </div>
+    </form>
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="hr-glass-panel hr-page-tabs rounded-lg overflow-hidden flex-1 min-w-0">
+        <nav class="hr-page-tabs__bar" role="tablist" aria-label="عرض التقرير">
+            <button type="button" role="tab" class="hr-tab-btn" :class="{ 'is-active': tab === 'daily' }" @click="tab = 'daily'">
+                <span>حضور يومي</span>
+                <span class="hr-tab-badge">{{ total_daily_rows }}</span>
+            </button>
+            <button type="button" role="tab" class="hr-tab-btn" :class="{ 'is-active': tab === 'detail' }" @click="tab = 'detail'">
+                <span>بصمات تفصيلية</span>
+                <span class="hr-tab-badge">{{ punches_page.paginator.count }}</span>
+            </button>
+        </nav>
+        </div>
+        <p class="text-xs font-semibold text-slate-500 m-0">
+            {{ filters.date_from|default:"—" }} — {{ filters.date_to|default:"—" }}
+        </p>
+    </div>
+
+    <div class="hr-report-card" x-show="tab === 'daily'"{% if request.GET.punches_page %} style="display:none"{% endif %}>
+        {% if daily_page.object_list %}
+        <div class="overflow-x-auto">
+            <table class="hr-report-tbl">
+                <thead>
+                    <tr>
+                        <th class="text-center w-10">#</th>
+                        <th>التاريخ</th>
+                        <th>الموظف</th>
+                        <th>دخول</th>
+                        <th>خروج</th>
+                        <th class="text-center">بصمات</th>
+                        <th>المدة</th>
+                        <th>الحالة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in daily_page.object_list %}
+                    <tr class="{% if not row.is_mapped %}row-warn{% endif %}">
+                        <td class="text-center mono text-slate-500">{{ daily_page.start_index|add:forloop.counter0 }}</td>
+                        <td class="mono">{{ row.work_date }}</td>
+                        <td>
+                            {% if row.is_mapped and row.employee_id %}
+                            <a href="{% url 'web:view_employee' row.employee_id %}" class="hr-report-link">{{ row.employee_name }}</a>
+                            {% if row.employee_number != '—' %}<span class="hr-report-sub" dir="ltr">#{{ row.employee_number }}</span>{% endif %}
+                            {% elif row.device_user_id %}
+                            <a href="{% url 'web:biometric_devices' %}?link_device={{ row.device_id }}&link_user={{ row.device_user_id }}" class="hr-report-link text-amber-800">ربط: {{ row.device_user_name }}</a>
+                            {% else %}
+                            <span class="text-amber-800 font-bold">{{ row.device_user_name }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono text-emerald-700">{{ row.check_in_display }}</td>
+                        <td class="mono text-indigo-700">{{ row.check_out_display }}</td>
+                        <td class="text-center mono">{{ row.punch_count }}</td>
+                        <td class="mono">{{ row.duration_display }}</td>
+                        <td>
+                            {% if row.status_label == 'مكتمل' %}
+                            <span class="hr-report-badge hr-report-badge-ok">{{ row.status_label }}</span>
+                            {% elif row.status_label == 'بصمة واحدة' or row.status_label == 'غير مربوط بـ HR' %}
+                            <span class="hr-report-badge hr-report-badge-warn">{{ row.status_label }}</span>
+                            {% else %}
+                            <span class="hr-report-badge hr-report-badge-muted">{{ row.status_label }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if daily_page.has_other_pages %}
+        <div class="hr-report-pager hr-pagination__controls">
+            {% if daily_page.has_previous %}
+            <a href="?{{ querystring }}&page={{ daily_page.previous_page_number }}" class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">السابق</a>
+            {% else %}
+            <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled">السابق</span>
+            {% endif %}
+            <span class="hr-pagination__status">{{ daily_page.number }}/{{ daily_page.paginator.num_pages }}</span>
+            {% if daily_page.has_next %}
+            <a href="?{{ querystring }}&page={{ daily_page.next_page_number }}" class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">التالي</a>
+            {% else %}
+            <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled">التالي</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="hr-report-empty">لا بيانات</p>
+        {% endif %}
+    </div>
+
+    <div class="hr-report-card" x-show="tab === 'detail'"{% if not request.GET.punches_page %} style="display:none"{% endif %}>
+        {% if punches_page.object_list %}
+        <div class="overflow-x-auto">
+            <table class="hr-report-tbl">
+                <thead>
+                    <tr>
+                        <th class="text-center w-10">#</th>
+                        <th>التاريخ</th>
+                        <th>الوقت</th>
+                        <th>الموظف</th>
+                        <th>الحركة</th>
+                        <th>الجهاز</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in punches_page.object_list %}
+                    <tr class="{% if not p.employee_id %}row-warn{% endif %}">
+                        <td class="text-center mono text-slate-500">{{ punches_page.start_index|add:forloop.counter0 }}</td>
+                        <td class="mono">{{ p.local_punched_at|date:"Y-m-d" }}</td>
+                        <td class="mono">{{ p.local_punched_at|date:"H:i:s" }}</td>
+                        <td>
+                            {% if p.employee_id %}
+                            <a href="{% url 'web:view_employee' p.employee_id %}" class="hr-report-link">{{ p.employee.name }}</a>
+                            {% else %}
+                            <a href="{% url 'web:biometric_devices' %}?link_device={{ p.device_id }}&link_user={{ p.device_user_id }}" class="hr-report-badge hr-report-badge-warn">ربط HR</a>
+                            <span class="hr-report-sub" dir="ltr">User {{ p.device_user_id }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.punch_type == 'in' %}
+                            <span class="hr-report-badge hr-report-badge-in">{{ p.get_punch_type_display }}</span>
+                            {% elif p.punch_type == 'out' %}
+                            <span class="hr-report-badge hr-report-badge-out">{{ p.get_punch_type_display }}</span>
+                            {% else %}
+                            <span class="hr-report-badge hr-report-badge-muted">{{ p.get_punch_type_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs font-semibold text-slate-600">{{ p.device.name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if punches_page.has_other_pages %}
+        <div class="hr-report-pager hr-pagination__controls">
+            {% if punches_page.has_previous %}
+            <a href="?{{ querystring }}&punches_page={{ punches_page.previous_page_number }}" class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">السابق</a>
+            {% else %}
+            <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled">السابق</span>
+            {% endif %}
+            <span class="hr-pagination__status">{{ punches_page.number }}/{{ punches_page.paginator.num_pages }}</span>
+            {% if punches_page.has_next %}
+            <a href="?{{ querystring }}&punches_page={{ punches_page.next_page_number }}" class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn">التالي</a>
+            {% else %}
+            <span class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn is-disabled">التالي</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="hr-report-empty">لا بيانات</p>
+        {% endif %}
+    </div>
+
+</div>
+
+{% endblock %}

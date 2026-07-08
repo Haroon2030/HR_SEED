@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}التقارير{% endblock %}
+
+{% block content %}
+{% include "pages/reports/_filter_styles.html" %}
+
+<div class="max-w-7xl mx-auto space-y-4">
+
+    <div class="mb-1">
+        <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-1">
+            <i data-lucide="bar-chart-3" class="w-5 h-5 text-primary-600"></i>
+            التقارير
+        </h1>
+    </div>
+
+    {% include "pages/reports/_filter_table.html" %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script defer src="/static/js/hr-report-picker.js?v=20260604-3"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.hrInitReportPickers) window.hrInitReportPickers();
+    if (window.lucide) lucide.createIcons();
+});
+</script>
+{% endblock %}

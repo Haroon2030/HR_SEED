@@ -1,0 +1,358 @@
+"""تقرير الحضور اليومي — تجميع البصمات حسب الموظف واليوم."""
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+
+from django.db.models import Count, Max, Min, Q, QuerySet
+from django.db.models.functions import TruncDate
+from django.utils import timezone
+
+from apps.attendance.models import AttendancePunch
+from apps.attendance.selectors.employee_enrollment import load_enrollment_employee_map
+
+
+@dataclass(frozen=True)
+class DailyAttendanceRow:
+    work_date: date
+    employee_id: int | None
+    employee_name: str
+    employee_number: str
+    branch_name: str
+    department_name: str
+    administration_name: str
+    device_name: str
+    device_id: int
+    device_user_id: int
+    device_user_name: str
+    check_in: datetime | None
+    check_out: datetime | None
+    punch_count: int
+    work_duration: timedelta | None
+    status_label: str
+    is_mapped: bool
+
+    @property
+    def sort_key(self) -> tuple:
+        return (self.work_date, self.branch_name, self.employee_name or self.device_user_name)
+
+    @property
+    def duration_display(self) -> str:
+        return _format_duration(self.work_duration)
+
+    @property
+    def check_in_display(self) -> str:
+        return _format_time(self.check_in)
+
+    @property
+    def check_out_display(self) -> str:
+        return _format_time(self.check_out)
+
+
+def _format_duration(delta: timedelta | None) -> str:
+    if not delta or delta.total_seconds() <= 0:
+        return '—'
+    total_minutes = int(delta.total_seconds() // 60)
+    hours, minutes = divmod(total_minutes, 60)
+    return f'{hours}:{minutes:02d}'
+
+
+def _format_time(dt: datetime | None) -> str:
+    if not dt:
+        return '—'
+    return timezone.localtime(dt).strftime('%H:%M')
+
+
+def _pick_in_out_times(punches: list[AttendancePunch]) -> tuple[datetime | None, datetime | None]:
+    ins = [p for p in punches if p.punch_type == AttendancePunch.PunchType.CHECK_IN]
+    outs = [p for p in punches if p.punch_type == AttendancePunch.PunchType.CHECK_OUT]
+    t_in = min((p.punched_at for p in ins), default=None)
+    if t_in is None and punches:
+        t_in = punches[0].punched_at
+    t_out = max((p.punched_at for p in outs), default=None)
+    if t_out is None and len(punches) > 1:
+        t_out = punches[-1].punched_at
+    if t_in and t_out and t_out < t_in:
+        t_out = punches[-1].punched_at
+    return t_in, t_out
+
+
+def _status_label(
+    *,
+    punch_count: int,
+    check_in: datetime | None,
+    check_out: datetime | None,
+    is_mapped: bool,
+) -> str:
+    if not is_mapped:
+        return 'غير مربوط بـ HR'
+    if punch_count == 0:
+        return '—'
+    if check_in and check_out and check_in != check_out:
+        return 'مكتمل'
+    if punch_count == 1:
+        return 'بصمة واحدة'
+    return 'غير مكتمل'
+
+
+def _day_group_key(punch: AttendancePunch, day: date) -> tuple:
+    """موظف مربوط: صف واحد/يوم — غير مربوط: حسب الجهاز ورقم المستخدم."""
+    if punch.employee_id:
+        return ('emp', day, punch.employee_id)
+    return ('dev', day, punch.device_id, punch.device_user_id)
+
+
+def _resolve_employee_for_punch(punch: AttendancePunch, enroll_map: dict) -> object | None:
+    if punch.employee_id and punch.employee:
+        return punch.employee
+    return enroll_map.get((punch.device_id, punch.device_user_id))
+
+
+def _day_group_key_resolved(punch: AttendancePunch, day: date, enroll_map: dict) -> tuple:
+    employee = _resolve_employee_for_punch(punch, enroll_map)
+    if employee is not None:
+        return ('emp', day, employee.pk)
+    return ('dev', day, punch.device_id, punch.device_user_id)
+
+
+def _fmt_employee_administration(employee) -> str:
+    if not employee:
+        return '—'
+    adm = getattr(employee, 'administration', None)
+    if not adm:
+        return '—'
+    code = (getattr(adm, 'code', None) or '').strip()
+    name = (getattr(adm, 'name', None) or '').strip()
+    if code and name:
+        return f'{code} — {name}'
+    return code or name or '—'
+
+
+MAX_DAILY_ATTENDANCE_ROWS = 15_000
+
+
+def _rows_from_linked_sql_aggregates(qs: QuerySet) -> list[DailyAttendanceRow]:
+    """تجميع SQL للبصمات المربوطة مباشرة بموظف HR — أسرع من التكرار في Python."""
+    linked = qs.filter(employee_id__isnull=False)
+    if not linked.exists():
+        return []
+
+    tz = timezone.get_current_timezone()
+    check_in = AttendancePunch.PunchType.CHECK_IN
+    check_out = AttendancePunch.PunchType.CHECK_OUT
+
+    agg = (
+        linked.annotate(day=TruncDate('punched_at', tzinfo=tz))
+        .values('day', 'employee_id')
+        .annotate(
+            check_in=Min('punched_at', filter=Q(punch_type=check_in)),
+            check_out=Max('punched_at', filter=Q(punch_type=check_out)),
+            punch_count=Count('id'),
+            device_id=Min('device_id'),
+        )
+    )
+
+    employee_ids = {row['employee_id'] for row in agg}
+    from apps.employees.models import Employee
+
+    employees = {
+        e.pk: e
+        for e in Employee.objects.filter(pk__in=employee_ids).select_related(
+            'branch', 'department', 'administration',
+        )
+    }
+    device_ids = {row['device_id'] for row in agg if row['device_id']}
+    from apps.attendance.models import BiometricDevice
+
+    devices = {
+        d.pk: d
+        for d in BiometricDevice.objects.filter(pk__in=device_ids).select_related('branch')
+    }
+
+    rows: list[DailyAttendanceRow] = []
+    for row in agg:
+        employee = employees.get(row['employee_id'])
+        if not employee:
+            continue
+        device = devices.get(row['device_id'])
+        check_in_dt = row['check_in']
+        check_out_dt = row['check_out']
+        duration = None
+        if check_in_dt and check_out_dt and check_out_dt > check_in_dt:
+            duration = check_out_dt - check_in_dt
+        punch_count = row['punch_count'] or 0
+        rows.append(
+            DailyAttendanceRow(
+                work_date=row['day'],
+                employee_id=employee.pk,
+                employee_name=employee.name,
+                employee_number=employee.employee_number or '—',
+                branch_name=employee.branch.name if employee.branch else '—',
+                department_name=employee.department.name if employee.department else '—',
+                administration_name=_fmt_employee_administration(employee),
+                device_name=device.name if device else '—',
+                device_id=row['device_id'] or 0,
+                device_user_id=0,
+                device_user_name='—',
+                check_in=check_in_dt,
+                check_out=check_out_dt,
+                punch_count=punch_count,
+                work_duration=duration,
+                status_label=_status_label(
+                    punch_count=punch_count,
+                    check_in=check_in_dt,
+                    check_out=check_out_dt,
+                    is_mapped=True,
+                ),
+                is_mapped=True,
+            ),
+        )
+    return rows
+
+
+def _rows_from_unlinked_python(
+    qs: QuerySet,
+    enroll_map: dict,
+    *,
+    max_rows: int | None,
+) -> list[DailyAttendanceRow]:
+    """تجميع Python للبصمات غير المربوطة أو المعتمدة على تسجيل الجهاز."""
+    groups: dict[tuple, list[AttendancePunch]] = defaultdict(list)
+    unlinked = qs.filter(employee_id__isnull=True)
+    for punch in unlinked.select_related('device', 'device__branch').iterator(chunk_size=3000):
+        day = timezone.localtime(punch.punched_at).date()
+        groups[_day_group_key_resolved(punch, day, enroll_map)].append(punch)
+
+    rows: list[DailyAttendanceRow] = []
+    for punches in groups.values():
+        punches.sort(key=lambda p: p.punched_at)
+        first = punches[0]
+        work_date = timezone.localtime(first.punched_at).date()
+        employee = _resolve_employee_for_punch(first, enroll_map)
+        if employee is not None:
+            continue
+        device_names = sorted({p.device.name for p in punches if p.device})
+        device_user_ids = sorted({p.device_user_id for p in punches})
+        check_in, check_out = _pick_in_out_times(punches)
+        duration = None
+        if check_in and check_out and check_out > check_in:
+            duration = check_out - check_in
+        branch_name = '—'
+        if first.device and first.device.branch:
+            branch_name = first.device.branch.name
+        rows.append(
+            DailyAttendanceRow(
+                work_date=work_date,
+                employee_id=None,
+                employee_name='—',
+                employee_number='—',
+                branch_name=branch_name,
+                department_name='—',
+                administration_name='—',
+                device_name=', '.join(device_names) if device_names else '—',
+                device_id=first.device_id,
+                device_user_id=device_user_ids[0] if len(device_user_ids) == 1 else 0,
+                device_user_name=(
+                    first.device_user_name or '—'
+                    if len(device_user_ids) == 1
+                    else f'متعدد ({len(device_user_ids)})'
+                ),
+                check_in=check_in,
+                check_out=check_out,
+                punch_count=len(punches),
+                work_duration=duration,
+                status_label=_status_label(
+                    punch_count=len(punches),
+                    check_in=check_in,
+                    check_out=check_out,
+                    is_mapped=False,
+                ),
+                is_mapped=False,
+            ),
+        )
+        if max_rows is not None and len(rows) >= max_rows:
+            break
+    return rows
+
+
+@dataclass(frozen=True)
+class DailyAttendanceBuildResult:
+    rows: list[DailyAttendanceRow]
+    truncated: bool
+
+
+def build_daily_attendance_result(
+    qs: QuerySet,
+    *,
+    max_rows: int | None = MAX_DAILY_ATTENDANCE_ROWS,
+) -> DailyAttendanceBuildResult:
+    """
+    يجمع سجلات البصمة إلى صفوف يومية (موظف/يوم أو مستخدم جهاز/يوم).
+
+    وقت الدخول = أول بصمة CHECK_IN في اليوم (Min في SQL)؛
+    إن لم توجد، يُستخدم أول بصمة في اليوم (_pick_in_out_times).
+  """
+    device_ids = set(qs.values_list('device_id', flat=True).distinct())
+    enroll_map = load_enrollment_employee_map(device_ids)
+
+    rows = _rows_from_linked_sql_aggregates(qs)
+    rows.extend(_rows_from_unlinked_python(qs, enroll_map, max_rows=max_rows))
+
+    rows.sort(key=lambda r: r.sort_key, reverse=True)
+    truncated = max_rows is not None and len(rows) > max_rows
+    if truncated:
+        rows = rows[:max_rows]
+    return DailyAttendanceBuildResult(rows=rows, truncated=truncated)
+
+
+def build_daily_attendance_rows(
+    qs: QuerySet,
+    *,
+    max_rows: int | None = MAX_DAILY_ATTENDANCE_ROWS,
+) -> list[DailyAttendanceRow]:
+    """يجمع سجلات البصمة إلى صفوف يومية — انظر build_daily_attendance_result للتفاصيل."""
+    return build_daily_attendance_result(qs, max_rows=max_rows).rows
+
+
+def summarize_daily_rows(rows: list[DailyAttendanceRow], *, punch_total: int = 0) -> dict:
+    complete = sum(1 for r in rows if r.status_label == 'مكتمل')
+    single = sum(1 for r in rows if r.status_label == 'بصمة واحدة')
+    incomplete = sum(1 for r in rows if r.status_label == 'غير مكتمل')
+    unmapped = sum(1 for r in rows if not r.is_mapped)
+    return {
+        'total_days': len(rows),
+        'total_punches': punch_total,
+        'complete': complete,
+        'single_punch': single,
+        'incomplete': incomplete,
+        'unmapped': unmapped,
+        'mapped': len(rows) - unmapped,
+    }
+
+
+def daily_rows_to_table(rows: list[DailyAttendanceRow]) -> dict:
+    """تحويل الصفوف لعرض التقارير العامة (columns + rows)."""
+    columns = [
+        'التاريخ', 'الموظف', 'الرقم الوظيفي', 'الفرع', 'القسم', 'الإدارة', 'الجهاز',
+        'رقم المستخدم', 'وقت الدخول', 'وقت الخروج', 'عدد البصمات', 'مدة العمل', 'الحالة',
+    ]
+    table_rows = [
+        [
+            str(r.work_date),
+            r.employee_name if r.is_mapped else r.device_user_name,
+            r.employee_number,
+            r.branch_name,
+            r.department_name,
+            r.administration_name,
+            r.device_name,
+            str(r.device_user_id),
+            _format_time(r.check_in),
+            _format_time(r.check_out),
+            str(r.punch_count),
+            _format_duration(r.work_duration),
+            r.status_label,
+        ]
+        for r in rows
+    ]
+    return {'columns': columns, 'rows': table_rows}

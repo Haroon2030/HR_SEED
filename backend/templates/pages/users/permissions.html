@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}صلاحيات المستخدم — {{ user_obj.username }}{% endblock %}
+
+{% block content %}
+<div class="hr-user-perms-page w-full max-w-full">
+
+    {% hr_breadcrumb items=breadcrumb_items %}
+
+    <form method="post"
+          x-data="permsTreeMatrix('{{ default_group_id|escapejs }}')"
+          x-init="initTree()"
+          class="hr-user-perms-form">
+        {% csrf_token %}
+
+        <div class="hr-perm-matrix hr-perm-matrix--compact hr-perm-matrix--erp">
+            <div class="hr-perm-matrix__toolbar">
+                <div class="hr-perm-matrix__toolbar-main min-w-0">
+                    <div class="hr-perm-matrix__title-row">
+                        <span class="hr-perm-matrix__avatar" aria-hidden="true">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h1 class="hr-perm-matrix__title truncate">
+                                {{ user_obj.get_full_name|default:user_obj.username }}
+                            </h1>
+                            <p class="hr-perm-matrix__meta truncate">
+                                @{{ user_obj.username }}
+                                {% if role %}· {{ role|role_arabic_name }}{% else %}· بدون دور{% endif %}
+                            </p>
+                        </div>
+                        <div class="hr-perm-matrix__legend" aria-label="دليل الألوان">
+                            <span class="hr-perm-legend-chip hr-perm-legend-chip--allow">مسموح</span>
+                            <span class="hr-perm-legend-chip hr-perm-legend-chip--deny">ممنوع</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-perm-matrix__toolbar-actions">
+                    {% url 'web:list_users' as back_url %}
+                    {% include 'components/glass_back_link.html' with back_url=back_url show_label=True label='رجوع' aria_label='رجوع لقائمة المستخدمين' extra_class='hr-perm-matrix__back' %}
+                    {% if not is_admin_user and matrix %}
+                    {% include "components/hr_btn.html" with label="حفظ" type="submit" variant="primary" icon="save" size="sm" extra_class="hr-perm-matrix__save" %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="hr-perm-tree-layout">
+                {% include "components/perm_tree_sidebar.html" %}
+                <div class="hr-perm-tree-layout__table">
+                    {% include "components/perm_matrix_user.html" %}
+                </div>
+            </div>
+        </div>
+
+        {% if not is_admin_user and matrix %}
+        <div class="hr-user-perms-form__footer">
+            {% url 'web:list_users' as users_list_url %}
+            {% include "components/hr_btn.html" with label="إلغاء" href=users_list_url variant="secondary" size="sm" %}
+            {% include "components/hr_btn.html" with label="حفظ الصلاحيات" type="submit" variant="primary" icon="save" %}
+        </div>
+        {% endif %}
+    </form>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.lucide) lucide.createIcons();
+        document.querySelectorAll('.hr-perm-toggle').forEach(function (group) {
+            group.querySelectorAll('.hr-perm-toggle__input').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    group.querySelectorAll('.hr-perm-toggle__opt').forEach(function (opt) {
+                        opt.classList.remove('is-active');
+                    });
+                    if (input.checked) {
+                        input.closest('.hr-perm-toggle__opt').classList.add('is-active');
+                    }
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

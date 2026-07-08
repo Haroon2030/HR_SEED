@@ -1,0 +1,125 @@
+"""
+إعدادات التطوير - Development Settings
+"""
+
+import environ
+from .base import *
+
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / '.env')
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'django-insecure-dev-key-change-in-production-!@#$%^&*()'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+ALLOWED_HOSTS = env.list(
+    'ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1', '0.0.0.0'],
+)
+
+# Django 4+ يتحقق من Origin — يجب إدراج المنفذ والبروتوكول (localhost ≠ 127.0.0.1)
+CSRF_TRUSTED_ORIGINS = env.list(
+    'CSRF_TRUSTED_ORIGINS',
+    default=[
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+        'http://127.0.0.1:8080',
+        'http://localhost:8080',
+    ],
+)
+
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+# HTTP محلي — الجلسة تنتهي عند إغلاق المتصفح (مثل الإنتاج)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Database - DATABASE_URL from .env (Neon Postgres) or fallback to SQLite
+# ══════════════════════════════════════════════════════════════════════════════
+
+if env('DATABASE_URL', default=''):
+    DATABASES = {'default': env.db('DATABASE_URL')}
+    DATABASES['default'].setdefault('CONN_MAX_AGE', 60)
+    DATABASES['default'].setdefault('DISABLE_SERVER_SIDE_CURSORS', True)
+    if DATABASES['default'].get('ENGINE', '').endswith('postgresql'):
+        _opts = DATABASES['default'].setdefault('OPTIONS', {})
+        _opts.setdefault('sslmode', env('DB_SSLMODE', default='require'))
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CORS - Allow all origins in development
+# ══════════════════════════════════════════════════════════════════════════════
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+# Celery — تنفيذ متزامن في التطوير (بدون عامل منفصل)
+CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=True)
+
+# وكيل البصمة — السماح للمفتاح العام بقائمة الأجهزة في التطوير
+AGENT_GLOBAL_KEY_LIST_DEVICES = True
+
+# توقيع HMAC للبصمة — معطّل في التطوير لتسهيل الاختبار المحلي
+ATTENDANCE_REQUIRE_INGEST_SIGNATURE = env.bool('ATTENDANCE_REQUIRE_INGEST_SIGNATURE', default=False)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REST Framework — يُورث من base.py (JWT، throttling، spectacular، معالج الأخطاء)
+# تخصيص التطوير فقط: ترقيم أوضح للقوائم عند التجربة اليدوية
+# ══════════════════════════════════════════════════════════════════════════════
+
+REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'rest_framework.pagination.PageNumberPagination'
+REST_FRAMEWORK['PAGE_SIZE'] = 20
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Debug Toolbar (optional)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# INSTALLED_APPS += ['debug_toolbar']
+# MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+# INTERNAL_IPS = ['127.0.0.1']
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Logging
+# ══════════════════════════════════════════════════════════════════════════════
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Email
+# إعدادات البريد الإلكتروني مُعرّفة في base.py وتُقرأ من .env
+# في التطوير: إذا EMAIL_HOST غير مُعدّ، يُستخدم console backend تلقائياً
+# ══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,2064 @@
+﻿{% extends "base.html" %}
+{% load custom_tags l10n %}
+
+{% block title %}عرض الموظف: {{ employee.name }}{% endblock %}
+{% block page_title %}عرض بيانات الموظف{% endblock %}
+
+{% block content %}
+{{ employee_modal_js|json_script:"employee-modal-js" }}
+<div class="space-y-4" x-data="{ activeTab: '{{ default_employee_tab }}', quickModal: null, quickOpen: false, absenceEdit: null, leaveEdit: null, statementEdit: null, loanEdit: null, ledgerEdit: null }"
+     x-init="{% if tab_visible.fingerprint %}if (window.location.hash === '#fingerprint' && !window.location.search.includes('tab=fingerprint')) { var u = new URL(window.location.href); u.searchParams.set('tab', 'fingerprint'); window.location.replace(u.pathname + u.search + '#fingerprint'); } else if (window.location.hash === '#fingerprint') { activeTab = 'fingerprint'; }{% endif %}"
+     x-effect="document.body.classList.toggle('hr-quick-modal-open', !!quickModal)"
+     @open-schedule-modal.window="quickModal = 'schedule'"
+     @close-schedule-modal.window="quickModal = null"
+     @open-absence-edit.window="absenceEdit = $event.detail; quickModal = 'absence-edit'"
+     @open-leave-edit.window="leaveEdit = $event.detail; quickModal = 'leave-edit'"
+     @open-statement-edit.window="statementEdit = $event.detail; quickModal = 'statement-edit'"
+     @open-loan-edit.window="loanEdit = $event.detail; quickModal = 'loan-edit'"
+     @open-ledger-edit.window="ledgerEdit = $event.detail; quickModal = 'ledger-edit'">
+
+    <!-- Header -->
+    <div class="hr-employee-header hr-glass-panel flex flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+        <div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <h1 class="text-2xl font-bold text-slate-900">{{ employee.name }}</h1>
+                {% employee_status_badge employee size='md' %}
+            </div>
+            <p class="text-slate-500 text-xs mt-1">عرض البيانات للقراءة فقط</p>
+        </div>
+        <div class="flex items-center gap-2">
+            {% url 'web:list_employees' as employees_list_url %}
+            {% include 'components/glass_back_link.html' with back_url=employees_list_url show_label=True label='رجوع' aria_label='رجوع لقائمة الموظفين' %}
+
+            {% if employee.status == 'active' or employee.status == 'leave' %}
+            <!-- زر إضافة سريعة -->
+            <div class="hr-dropdown" @click.outside="quickOpen = false">
+                <button type="button" @click="quickOpen = !quickOpen"
+                    class="hr-btn hr-btn--primary">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                    إضافة سريعة
+                    <i data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="quickOpen ? 'rotate-180' : ''"></i>
+                </button>
+                <div x-show="quickOpen" x-cloak x-transition
+                    class="hr-dropdown-menu hr-dropdown-menu--sidebar end-0 top-full mt-2 w-56 py-1">
+                    <button type="button" @click="quickModal='leave'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="calendar-plus" class="w-4 h-4"></i> تقديم إجازة
+                    </button>
+                    <button type="button" @click="quickModal='terminate'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="user-x" class="w-4 h-4"></i> تصفية موظف
+                    </button>
+                    {% if can_edit_salary %}
+                    <button type="button" @click="quickModal='salary'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="dollar-sign" class="w-4 h-4"></i> تعديل راتب
+                    </button>
+                    {% endif %}
+                    <button type="button" @click="quickModal='transfer'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="move" class="w-4 h-4"></i> نقل موظف
+                    </button>
+                    <button type="button" @click="quickModal='statement'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i> إفادات ومخالفات
+                    </button>
+                    <button type="button" @click="quickModal='schedule'; quickOpen=false; $dispatch('open-schedule-modal', { add: true })" class="hr-dropdown-item">
+                        <i data-lucide="calendar-days" class="w-4 h-4"></i> جدول الدوام
+                    </button>
+                    <div class="hr-dropdown-divider"></div>
+                    <button type="button" @click="quickModal='custody_receive'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="package-check" class="w-4 h-4"></i> استلام عهدة
+                    </button>
+                    <button type="button" @click="quickModal='custody_clear'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="package-x" class="w-4 h-4"></i> تصفية عهدة
+                    </button>
+                    <button type="button" @click="quickModal='loan'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="wallet" class="w-4 h-4"></i> تقديم سلفة
+                    </button>
+                    <button type="button" @click="quickModal='absence'; quickOpen=false" class="hr-dropdown-item">
+                        <i data-lucide="user-minus" class="w-4 h-4"></i> تسجيل غياب
+                    </button>
+                    <div class="hr-dropdown-divider"></div>
+                    {% if can_execute_settlement %}
+                    <button type="button" @click.stop="quickModal='end_of_service'; quickOpen=false; $nextTick(() => $dispatch('eos-calculator-reset'))" class="hr-dropdown-item">
+                        <i data-lucide="file-x-2" class="w-4 h-4"></i> تصفية نهاية خدمة / استقالة
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if can_view_salary %}
+            {% url 'web:export_employee_salary_excel' employee.id as export_salary_href %}
+            {% include "components/hr_btn.html" with href=export_salary_href label="تصدير Excel" variant="glass-emerald" icon="file-spreadsheet" %}
+            {% endif %}
+
+            <a href="{% url 'web:employee_barcode_labels' %}?employee_id={{ employee.id }}"
+               class="hr-btn hr-btn--glass-slate inline-flex items-center gap-2">
+                <i data-lucide="barcode" class="hr-btn__icon w-4 h-4"></i>
+                <span>باركود Zebra</span>
+            </a>
+
+            {% url 'web:edit_employee' employee.id as edit_employee_url %}
+            {% include "components/hr_btn.html" with href=edit_employee_url label="تعديل / إكمال البيانات" variant="glass-primary" icon="pencil" %}
+        </div>
+    </div>
+
+    {% if employee.status == 'terminated' %}
+    <!-- بانر التصفية -->
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <i data-lucide="user-x" class="w-5 h-5 text-red-600"></i>
+        </div>
+        <div class="flex-1">
+            <div class="font-bold text-red-800 text-sm mb-1">تمت تصفية هذا الموظف</div>
+            <div class="text-xs text-red-700 grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                <div><span class="font-bold">تاريخ التوقف:</span> {{ employee.end_date|default:"—" }}</div>
+                <div><span class="font-bold">السبب:</span> {{ employee.end_reason|default:"—" }}</div>
+                {% if employee.sponsorship_id %}
+                <div><span class="font-bold">بدل الإجازة المستحق:</span> {{ employee.leave_compensation|floatformat:2 }} ر.س</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex-shrink-0 flex flex-col gap-2">
+            <a href="{% url 'web:hr_form_print' 'final_settlement' employee.id %}" target="_blank" class="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center justify-center gap-1">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i> طباعة تسوية
+            </a>
+            <button type="button" @click="quickModal='reactivate'" class="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center justify-center gap-1">
+                <i data-lucide="user-check" class="w-3.5 h-3.5"></i> إعادة تفعيل
+            </button>
+        </div>
+    </div>
+    {% elif employee.status == 'suspended' %}
+    <!-- بانر الوقف (تصفية قيد الموافقة) -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+            <i data-lucide="user-x" class="w-5 h-5 text-amber-600"></i>
+        </div>
+        <div class="flex-1">
+            <div class="font-bold text-amber-900 text-sm mb-1">الموظف موقوف</div>
+            <p class="text-xs text-amber-800">يوجد طلب تصفية قيد الموافقة — الحالة ستتحول إلى «منتهي الخدمة» بعد اعتماد الطلب وتنفيذه.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% include "pages/employees/_employee_tab_panel.html" %}
+
+    {% localize off %}
+    <!-- Modal: إعادة تفعيل موظف مُصفّى -->
+    <div x-show="quickModal==='reactivate'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="user-check" class="w-5 h-5 text-emerald-600"></i>
+                    <span>إعادة تفعيل الموظف</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'web:reactivate_employee' employee.id %}" class="p-4 space-y-3">
+                {% csrf_token %}
+
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+                    <div class="font-bold flex items-center gap-1">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i> تنبيه نظامي
+                    </div>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        <li>تاريخ التوقف وسببه يُحفظ في السجل التاريخي (لا يُحذف)</li>
+                        <li>رصيد الإجازة يُعاد من تاريخ المباشرة الجديد</li>
+                        <li>تُسجَّل إفادة إعادة تفعيل تلقائياً في أرشيف الموظف</li>
+                    </ul>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ المباشرة الجديدة <span class="text-red-500">*</span></label>
+                        <input type="date" name="new_hire_date" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الحالة عند العودة</label>
+                        <select name="new_status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                            <option value="active">على رأس العمل</option>
+                            <option value="leave">في إجازة</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب إعادة التفعيل <span class="text-red-500">*</span></label>
+                    <input type="text" name="reactivation_reason" required placeholder="مثال: عاد بعد انتهاء تأشيرة الخروج" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                </div>
+
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--success">
+                        <i data-lucide="user-check" class="w-4 h-4"></i> تأكيد إعادة التفعيل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تسجيل إفادة / مخالفة -->
+    <div x-show="quickModal==='statement'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto">
+            <form method="post" action="{% url 'web:add_employee_statement' employee.id %}" enctype="multipart/form-data" class="px-4 py-3 grid grid-cols-1 md:grid-cols-6 gap-2.5"
+                  x-data="{
+                    sendEmail: false,
+                    empEmail: '{{ employee.email|default:''|escapejs }}',
+                    hrEmail: '{{ hr_notification_email|default:request.user.email|default:''|escapejs }}',
+                    stype: 'statement',
+                    nextNum: '{{ next_statement_serial|default:'STM-2026-0001' }}'.split('-').pop(),
+                    year: '{% now "Y" %}',
+                    prefixMap: { statement:'STM', warning:'WRN', final_warning:'FWR', acknowledgment:'ACK', other:'OTH' },
+                    get nextSerial(){ return (this.prefixMap[this.stype]||'STM') + '-' + this.year + '-' + this.nextNum; }
+                  }">
+                {% csrf_token %}
+
+                <div class="md:col-span-6 flex items-center justify-between border-b border-slate-200 pb-2 -mx-4 px-4">
+                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600"></i>
+                        تسجيل إفادة / مخالفة
+                    </h3>
+                    <div class="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-1">
+                        <i data-lucide="hash" class="w-3.5 h-3.5 text-indigo-500"></i>
+                        <span class="text-[10px] text-slate-500">رقم الإفادة التالي:</span>
+                        <span class="font-mono text-xs font-bold text-indigo-700" x-text="nextSerial">STM-2026-0001</span>
+                    </div>
+                    <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-bold text-slate-600 mb-0.5">النوع</label>
+                    <select name="statement_type" x-model="stype" class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                        <option value="statement">إفادة</option>
+                        <option value="warning">إنذار</option>
+                        <option value="final_warning">إنذار نهائي</option>
+                        <option value="penalty">مخالفة (خصم مالي)</option>
+                        <option value="acknowledgment">إقرار</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-bold text-slate-600 mb-0.5">التاريخ</label>
+                    <input type="date" name="statement_date" required class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                </div>
+                <div class="md:col-span-2">
+                    {% include 'components/file_upload.html' with name='document' label='المرفق (PDF / صورة / Excel)' %}
+                </div>
+
+                <div class="md:col-span-3" x-show="stype === 'penalty'" x-cloak>
+                    <label class="block text-[11px] font-bold text-rose-700 mb-0.5">مبلغ الخصم (ر.س) <span class="text-red-500">*</span></label>
+                    <input type="number" name="deduction_amount" min="0" step="0.01" placeholder="0.00" class="w-full px-2 py-1.5 border border-rose-300 rounded text-xs bg-rose-50">
+                </div>
+
+                <div class="md:col-span-6">
+                    <label class="block text-[11px] font-bold text-slate-600 mb-0.5">العنوان <span class="text-red-500">*</span></label>
+                    <input type="text" name="title" required placeholder="مثال: تأخر متكرر" class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                </div>
+                <div class="md:col-span-6">
+                    <label class="block text-[11px] font-bold text-slate-600 mb-0.5">التفاصيل</label>
+                    <textarea name="content" rows="2" placeholder="تفاصيل الإفادة / المخالفة..." class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs"></textarea>
+                </div>
+
+                <div class="md:col-span-6 border-t border-slate-200 pt-2">
+                    <label class="flex items-center gap-2 cursor-pointer mb-1.5">
+                        <input type="checkbox" x-model="sendEmail" name="send_email" value="1"
+                               class="w-4 h-4 text-emerald-600 border-slate-300 rounded">
+                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                            <i data-lucide="mail" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            إرسال نسخة بالبريد الإلكتروني (يُرسل المرفق تلقائياً)
+                        </span>
+                    </label>
+
+                    <div x-show="sendEmail" class="grid grid-cols-1 md:grid-cols-2 gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-0.5">بريد الموظف</label>
+                            <input type="email" name="employee_email" x-model="empEmail" placeholder="employee@example.com"
+                                   :required="sendEmail"
+                                   class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-0.5">بريد الموارد البشرية <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                            <input type="email" name="hr_email" x-model="hrEmail" placeholder="hr@example.com"
+                                   class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-6 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted hr-btn--sm">إلغاء</button>
+                    <button type="submit"
+                            class="hr-btn hr-btn--sm"
+                            :class="sendEmail ? 'hr-btn--success' : 'hr-btn--primary'">
+                        <i :data-lucide="sendEmail ? 'send' : 'save'" class="w-3.5 h-3.5"></i>
+                        <span x-text="sendEmail ? 'حفظ + إرسال' : 'حفظ'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: جدول الدوام (ورديات + بريد) -->
+    <div x-show="quickModal==='schedule'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-3 sm:p-4"
+         @click.self="window.dispatchEvent(new CustomEvent('close-schedule-modal'))">
+        <div class="hr-glass-modal hr-glass-modal--sidebar hr-schedule-roster-modal w-full max-h-[94vh] overflow-y-auto"
+             x-data="Object.assign(scheduleBoxes(true), {
+                editable: true,
+                focusedBoxId: null,
+                sendEmail: false,
+                empEmail: '{{ employee.email|default:''|escapejs }}',
+                hrEmail: '{{ hr_notification_email|default:request.user.email|default:''|escapejs }}',
+                handleScheduleOpen(detail) {
+                    detail = detail || {};
+                    if (detail.add) {
+                        this.addBox();
+                        this.focusedBoxId = this.boxes[this.boxes.length - 1].id;
+                    } else if (detail.boxId) {
+                        this.focusedBoxId = detail.boxId;
+                    } else {
+                        this.focusedBoxId = null;
+                    }
+                    this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+                },
+                closeScheduleModal() {
+                    this.focusedBoxId = null;
+                    window.dispatchEvent(new CustomEvent('close-schedule-modal'));
+                },
+                boxIndexById(id) {
+                    return this.boxes.findIndex(function(b) { return b.id === id; });
+                }
+             })"
+             @open-schedule-modal.window="handleScheduleOpen($event.detail)"
+             @close-schedule-modal.window="focusedBoxId = null"
+             x-effect="if ($root.quickModal === 'schedule' && boxes.length === 0 && !focusedBoxId) { addBox(); focusedBoxId = boxes.length ? boxes[0].id : null; } $nextTick(() => { if (window.lucide) lucide.createIcons(); })">
+            <form method="post" action="{% url 'web:set_work_schedule' employee.id %}" class="p-4 space-y-4"
+                  @submit="boxes.forEach(b => syncDaysFromCodes(b))">
+                {% csrf_token %}
+                <input type="hidden" name="boxes_json" :value="JSON.stringify(boxes)">
+
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 min-w-0">
+                        <i data-lucide="calendar-days" class="w-5 h-5 text-teal-600 shrink-0"></i>
+                        <span class="truncate" x-text="modalTitle()"></span>
+                    </h3>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <template x-if="focusedBoxId && boxes.length > 1">
+                            <button type="button" @click="focusedBoxId = null"
+                                    class="px-2.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg">
+                                كل الأشهر
+                            </button>
+                        </template>
+                        <button type="button" @click="addBox(); focusedBoxId = boxes[boxes.length - 1].id;"
+                                class="hr-btn hr-btn--dark hr-btn--sm">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            إضافة شهر
+                        </button>
+                        <button type="button" @click="closeScheduleModal()" class="text-slate-400 hover:text-slate-600 p-1" aria-label="إغلاق">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <template x-if="displayBoxes().length === 0">
+                    <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
+                        <i data-lucide="calendar-plus" class="w-10 h-10 text-slate-300 mx-auto mb-2"></i>
+                        <p class="text-sm text-slate-500 mb-3">لا يوجد جدول — ابدأ بإضافة شهر</p>
+                        <button type="button" @click="addBox(); focusedBoxId = boxes[boxes.length - 1].id;" class="hr-btn hr-btn--dark hr-btn--sm">إضافة شهر</button>
+                    </div>
+                </template>
+
+                <div class="space-y-4">
+                    <template x-for="box in displayBoxes()" :key="box.id">
+                        <div class="relative">
+                            {% if request.user.is_superuser or request.user.profile.role.role_type == 'admin' or request.user.profile.role.role_type == 'hr_manager' %}
+                            <button type="button" @click="removeBox(boxIndexById(box.id)); if (focusedBoxId === box.id) focusedBoxId = boxes.length ? boxes[0].id : null;"
+                                    class="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-white/90 border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 shadow-sm"
+                                    title="حذف الشهر">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                            {% endif %}
+                            {% include "components/schedule_roster_box.html" %}
+                        </div>
+                    </template>
+                </div>
+
+                <div class="hr-schedule-modal__email border-t pt-4 space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="hr-schedule-modal__label block text-xs font-bold mb-1">بريد الموظف</label>
+                            <input type="email" name="employee_email" x-model="empEmail"
+                                   placeholder="{{ employee.email|default:'employee@example.com' }}"
+                                   class="hr-schedule-modal__input w-full text-sm rounded-lg">
+                        </div>
+                        <div>
+                            <label class="hr-schedule-modal__label block text-xs font-bold mb-1">بريد الموارد البشرية</label>
+                            <input type="email" name="hr_email" x-model="hrEmail"
+                                   placeholder="hr@example.com"
+                                   class="hr-schedule-modal__input w-full text-sm rounded-lg">
+                        </div>
+                    </div>
+                    <label class="hr-schedule-modal__send flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" x-model="sendEmail" name="send_email" value="1" class="hr-schedule-modal__checkbox w-4 h-4 rounded">
+                        <span class="text-xs font-bold flex items-center gap-1">
+                            <i data-lucide="mail" class="w-3.5 h-3.5 shrink-0"></i>
+                            إرسال نسخة بالبريد الإلكتروني بعد الحفظ
+                        </span>
+                    </label>
+                </div>
+
+                <div class="sticky bottom-0 bg-white/95 backdrop-blur flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-100 -mx-4 px-4 pb-1">
+                    <button type="button" @click="closeScheduleModal()" class="hr-btn hr-btn--muted hr-btn--sm">إلغاء</button>
+                    <button type="submit"
+                            class="hr-btn hr-btn--sm"
+                            :class="sendEmail ? 'hr-btn--success' : 'hr-btn--primary'">
+                        <i :data-lucide="sendEmail ? 'send' : 'save'" class="w-3.5 h-3.5"></i>
+                        <span x-text="sendEmail ? 'حفظ + إرسال' : 'حفظ الجدول'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تقديم إجازة -->
+    <div x-show="quickModal==='leave'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null"
+         x-data="employeeLeaveForm()">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calendar-plus" class="w-5 h-5 text-blue-600"></i>
+                    <span>تقديم إجازة</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            {% if not employee.sponsorship_id %}
+            <div class="p-6">
+                <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm flex items-start gap-2">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 mt-0.5"></i>
+                    <div>
+                        <div class="font-bold mb-1">لا يمكن تقديم إجازة</div>
+                        <div>لا بيانات</div>
+                    </div>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إغلاق</button>
+                </div>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'web:add_employee_leave' employee.id %}" enctype="multipart/form-data" class="p-4 space-y-3">
+                {% csrf_token %}
+
+                <!-- بطاقة الرصيد -->
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
+                        <div class="text-[10px] text-slate-500 mb-0.5">المستحق</div>
+                        <div class="text-sm font-bold text-slate-800">{{ employee.accrued_leave_days|default:0 }}</div>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
+                        <div class="text-[10px] text-slate-500 mb-0.5">المستخدم</div>
+                        <div class="text-sm font-bold text-slate-800">{{ employee.available_leave_balance|default:0 }}</div>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-center">
+                        <div class="text-[10px] text-emerald-700 mb-0.5">المتاح</div>
+                        <div class="text-sm font-bold text-emerald-700">{{ employee.remaining_leave_days|default:0 }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">نوع الإجازة</label>
+                    <select name="leave_type" x-model="ltype" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                        <option value="annual">إجازة سنوية</option>
+                        <option value="sick">إجازة مرضية</option>
+                        <option value="unpaid">إجازة بدون راتب</option>
+                        <option value="emergency">إجازة طارئة</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">من تاريخ</label>
+                        <input type="date" name="date_from" x-model="dfrom" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">إلى تاريخ</label>
+                        <input type="date" name="date_to" x-model="dto" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                </div>
+
+                <!-- عرض المدّة -->
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    <span class="text-xs text-slate-600">عدد الأيام:</span>
+                    <span class="text-sm font-bold" :class="exceeds ? 'text-red-600' : 'text-slate-800'" x-text="days + ' يوم'"></span>
+                </div>
+
+                <!-- تحذير تجاوز الرصيد -->
+                <div x-show="exceeds" x-cloak class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-2 text-xs flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                    <span>تتجاوز الرصيد المتاح (<span x-text="balance"></span> يوم)</span>
+                </div>
+
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" :disabled="!canSubmit"
+                            class="hr-btn hr-btn--primary"
+                            :class="{ 'is-disabled': !canSubmit }">حفظ الإجازة</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal: تصفية موظف -->
+    <div x-show="quickModal==='terminate'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="user-x" class="w-5 h-5 text-red-600"></i>
+                    <span>تصفية موظف</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'web:terminate_employee' employee.id %}" class="p-4 space-y-3">
+                {% csrf_token %}
+
+                {% if employee.sponsorship_id %}
+                {% if can_view_salary %}
+                {% with total_salary=employee.total_salary remaining=employee.remaining_leave_days %}
+                <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                    <div class="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                        <span>مستحقات الإجازة عند التصفية</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                            <span class="text-slate-500">الراتب الإجمالي / شهر</span>
+                            <span class="font-bold text-slate-800">{{ total_salary|floatformat:2 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                            <span class="text-slate-500">الأجر اليومي (÷30)</span>
+                            <span class="font-bold text-slate-800">{{ employee.daily_wage|floatformat:2 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                            <span class="text-slate-500">رصيد الإجازة المتاح</span>
+                            <span class="font-bold text-slate-800">{{ remaining }} يوم</span>
+                        </div>
+                        <div class="flex justify-between bg-emerald-600 text-white rounded px-2 py-1.5">
+                            <span>المبلغ المستحق</span>
+                            <span class="font-bold">{{ employee.leave_compensation|floatformat:2 }} ر.س</span>
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+                {% else %}
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+                    رصيد الإجازة المتاح: <span class="font-bold">{{ employee.remaining_leave_days }} يوم</span>
+                    <span class="block mt-1 text-slate-500">تفاصيل المبالغ تتطلب صلاحية عرض الرواتب.</span>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center text-xs text-slate-500 py-2">لا بيانات</div>
+                {% endif %}
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ التوقف <span class="text-red-500">*</span></label>
+                    <input type="date" name="end_date" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب التصفية</label>
+                    <input type="text" name="end_reason" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                </div>
+
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--danger">تأكيد التصفية</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if can_execute_settlement %}
+    <!-- Modal: تصفية نهاية خدمة أو استقالة -->
+    <div x-show="quickModal==='end_of_service'" x-cloak
+         class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4"
+         role="dialog" aria-modal="true" aria-label="تصفية نهاية خدمة أو استقالة"
+         @click.self="quickModal=null"
+         x-effect="if (quickModal === 'end_of_service' && window.lucide) $nextTick(() => lucide.createIcons())">
+        <div class="hr-glass-modal w-full max-w-xl max-h-[90vh] overflow-y-auto" @click.stop>
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="file-x-2" class="w-5 h-5 text-red-600"></i>
+                    <span>تصفية نهاية خدمة أو استقالة</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'web:end_of_service_employee' employee.id %}" class="p-4 space-y-3"
+                  hx-boost="false"
+                  x-data="employeeEosCalculator()"
+                  @eos-calculator-reset.window="resetCalculator()">
+                {% csrf_token %}
+
+                <!-- حقل نوع التصفية -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">نوع التصفية <span class="text-red-500">*</span></label>
+                    <select name="terminated_by" x-model="terminatedBy" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                        <option value="company">تصفية نهاية خدمة (من قِبل الشركة)</option>
+                        <option value="employee">استقالة (من قِبل الموظف)</option>
+                        <option value="contract_expiry">انتهاء العقد بانتهاء مدته</option>
+                        <option value="article_74">إنهاء العقد بالتراضي (المادة 74)</option>
+                        <option value="article_77">إنهاء العقد — سبب غير مشروع (المادة 77)</option>
+                        <option value="article_80">إنهاء العقد — سبب مشروع (المادة 80)</option>
+                        <option value="probation_end">إنهاء العقد — نهاية فترة التجربة</option>
+                    </select>
+                </div>
+
+                <div x-show="terminatedBy === 'article_80'" x-cloak class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                    <i data-lucide="info" class="w-3.5 h-3.5 inline-block"></i>
+                    المادة 80: رصيد إجازات فقط — 21 يوم/سنة أول 5 سنوات، 30 يوم/سنة من السنة السادسة — بدون مكافأة نهاية خدمة.
+                </div>
+
+                <div x-show="terminatedBy === 'probation_end'" x-cloak class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                    <i data-lucide="info" class="w-3.5 h-3.5 inline-block"></i>
+                    نهاية فترة التجربة: رصيد إجازات فقط — 21 يوم/سنة — بدون مكافأة نهاية خدمة.
+                </div>
+
+                <div x-show="terminatedBy === 'article_77' || terminatedBy === 'article_74'" x-cloak>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">الطرف المُنهي <span class="text-red-500">*</span></label>
+                    <select name="article_party" x-model="articleParty" :required="terminatedBy === 'article_77' || terminatedBy === 'article_74'" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                        <option value="company">من قِبل الشركة</option>
+                        <option value="employee">من قِبل الموظف</option>
+                    </select>
+                    <p class="text-[10px] text-slate-500 mt-1" x-show="terminatedBy === 'article_77'">الشركة: مكافأة نهاية خدمة كاملة + راتب شهرين. الموظف: حساب الاستقالة + راتب شهرين.</p>
+                    <p class="text-[10px] text-slate-500 mt-1" x-show="terminatedBy === 'article_74'">الشركة: ½ راتب × 5 سنوات + راتب كامل بعدها. الموظف: ⅓ راتب/سنة أول 5 سنوات (مثلاً 3000 ← 1000/سنة) + ⅔ راتب/سنة بعدها (3000 ← 2000/سنة).</p>
+                </div>
+
+                <!-- فترة التصفية -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">من تاريخ (المباشرة)</label>
+                        <input type="date" :value="hireDate" readonly disabled
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded bg-slate-50 text-slate-700 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ التوقف (إلى) <span class="text-red-500">*</span></label>
+                        <input type="date" name="end_date" x-model="endDate" :min="hireDate || undefined" required
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                </div>
+                <p x-show="hireDate && endDate && endDate < hireDate" x-cloak class="text-xs text-red-600">
+                    تاريخ التوقف يجب أن يكون في أو بعد تاريخ المباشرة.
+                </p>
+
+                <!-- حاسبة EOSB التفاعلية -->
+                <div x-show="endDate && serviceDays > 0" x-cloak class="space-y-2">
+                        <!-- معلومات الخدمة -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
+                            <div class="text-xs font-bold text-slate-600 flex items-center gap-1">
+                                <i data-lucide="info" class="w-3.5 h-3.5"></i> بيانات الخدمة
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5 col-span-2">
+                                    <span class="text-slate-500">الفترة (من المباشرة → التوقف)</span>
+                                    <span class="font-bold" x-text="hireDate + ' → ' + endDate"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">مدة الخدمة</span>
+                                    <span class="font-bold" x-text="serviceDays + ' يوم (' + serviceYears.toFixed(2) + ' سنة)'"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">إجمالي الراتب</span>
+                                    <span class="font-bold" x-text="totalSalary.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                                <div x-show="hasSponsor" class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">أساس مكافأة نهاية الخدمة</span>
+                                    <span class="font-bold text-emerald-800" x-text="eosSalary.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                                <div x-show="hasSponsor && mealAllowance > 0" class="flex justify-between bg-white rounded px-2 py-1.5 col-span-2">
+                                    <span class="text-slate-500 text-[10px]">بدل التغذية مستثنى من المكافأة</span>
+                                    <span class="font-bold text-slate-600" x-text="mealAllowance.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- فئة المكافأة -->
+                        <div x-show="hasSponsor && showEosbSection" class="rounded-lg p-3 space-y-1.5"
+                             :class="category === 'trial' ? 'bg-amber-50 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'">
+                            <div class="text-xs font-bold flex items-center gap-1"
+                                 :class="category === 'trial' ? 'text-amber-700' : 'text-emerald-700'">
+                                <i data-lucide="calculator" class="w-3.5 h-3.5"></i>
+                                <span x-text="categoryLabel"></span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">المكافأة الأساسية</span>
+                                    <span class="font-bold text-emerald-700" x-text="eosbBase.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                                <div x-show="usesResignationFactor && resignLabel" class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500" x-text="resignLabel"></span>
+                                    <span class="font-bold text-amber-700" x-text="eosb.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="!hasSponsor" class="rounded-lg p-3 bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                            <i data-lucide="info" class="w-3.5 h-3.5 inline-block"></i>
+                            لا تُحسب مكافأة نهاية الخدمة — الموظف غير مكفول.
+                        </div>
+                        <div x-show="hasSponsor && !showEosbSection" class="rounded-lg p-3 bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                            <i data-lucide="ban" class="w-3.5 h-3.5 inline-block"></i>
+                            <span x-text="terminatedBy === 'probation_end' ? 'نهاية فترة التجربة — لا تُحسب مكافأة نهاية خدمة (رصيد إجازات فقط).' : 'المادة 80 — لا تُحسب مكافأة نهاية خدمة (رصيد إجازات فقط).'"></span>
+                        </div>
+
+                        <!-- مستحقات الإجازة -->
+                        <div x-show="hasSponsor" class="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
+                            <div class="text-xs font-bold text-blue-700 flex items-center gap-1">
+                                <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>
+                                <span x-text="leaveSectionLabel"></span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">المستحق حتى التوقف</span>
+                                    <span class="font-bold" x-text="accruedAtEndDate.toFixed(2) + ' يوم'"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">المستخدم</span>
+                                    <span class="font-bold text-slate-600" x-text="usedLeaveDays.toFixed(2) + ' يوم'"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">الرصيد المتبقي</span>
+                                    <span class="font-bold" x-text="displayLeaveDays.toFixed(2) + ' يوم'"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">الأجر اليومي</span>
+                                    <span class="font-bold" x-text="dailyWage.toFixed(2)"></span>
+                                </div>
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">المستحق</span>
+                                    <span class="font-bold text-blue-700" x-text="leaveComp.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- شرط جزائي — المادة 77 -->
+                        <div x-show="terminatedBy === 'article_77'" class="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1.5">
+                            <div class="text-xs font-bold text-purple-800 flex items-center gap-1">
+                                <i data-lucide="scale" class="w-3.5 h-3.5"></i> شرط جزائي (المادة 77) — راتب شهرين
+                            </div>
+                            <div class="flex justify-between bg-white rounded px-2 py-1.5 text-xs">
+                                <span class="text-slate-500">قيمة الجزاء</span>
+                                <span class="font-bold text-purple-700" x-text="penaltyAmount.toFixed(2) + ' ر.س'"></span>
+                            </div>
+                        </div>
+
+                        <!-- راتب الفترة والخصومات -->
+                        <div x-show="endDate && serviceDays > 0" class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
+                            <div class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                <i data-lucide="wallet" class="w-3.5 h-3.5"></i> راتب الفترة والخصومات
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">راتب حتى التوقف</span>
+                                    <span class="font-bold text-emerald-700" x-text="proratedSalary.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                                <div x-show="loansDeduction > 0" class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">خصم سلف</span>
+                                    <span class="font-bold text-amber-700" x-text="'− ' + loansDeduction.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                                <div x-show="absencesDeduction > 0" class="flex justify-between bg-white rounded px-2 py-1.5">
+                                    <span class="text-slate-500">خصم غيابات</span>
+                                    <span class="font-bold text-amber-700" x-text="'− ' + absencesDeduction.toFixed(2) + ' ر.س'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- الإجمالي -->
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-red-800 flex items-center gap-1">
+                                    <i data-lucide="banknote" class="w-4 h-4"></i> صافي المستحق
+                                </span>
+                                <span class="text-lg font-bold text-red-700" x-text="grandTotal.toFixed(2) + ' ر.س'"></span>
+                            </div>
+                            <div class="text-[10px] text-red-600 mt-1" x-text="totalSummaryText"></div>
+                        </div>
+                </div>
+
+                <!-- السبب -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب الإنهاء</label>
+                    <input type="text" name="end_reason" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500" placeholder="مثال: استقالة عادية / طلب الشركة">
+                </div>
+
+                <!-- ملاحظات -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500"></textarea>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--danger">تأكيد التصفية</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if can_edit_salary %}
+    <!-- Modal: تعديل راتب -->
+    <div x-show="quickModal==='salary'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null"
+         x-data="employeeSalaryRaiseCalculator()">
+        <div class="hr-glass-modal w-full max-w-xl max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="dollar-sign" class="w-5 h-5 text-emerald-600"></i>
+                    <span>تعديل راتب</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'web:adjust_employee_salary' employee.id %}" class="p-4 space-y-3" hx-boost="false"
+                  @submit="$refs.newBasicSalary.value = (parseFloat(basic) + parseFloat(raise || 0)).toFixed(2)">
+                {% csrf_token %}
+
+                <!-- الراتب الحالي -->
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="text-xs font-bold text-slate-600 mb-2 flex items-center gap-1">
+                        <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> الهيكل الحالي
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-xs">
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">أساسي</span>
+                            <span class="font-bold text-slate-800">{{ employee.basic_salary|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">سكن</span>
+                            <span class="font-bold text-slate-800">{{ employee.housing_allowance|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">نقل</span>
+                            <span class="font-bold text-slate-800">{{ employee.transport_allowance|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">بدل آخر</span>
+                            <span class="font-bold text-slate-800">{{ employee.other_allowance|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">نقدي</span>
+                            <span class="font-bold text-slate-800">{{ employee.cash_amount|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <span class="text-slate-500">تغذية</span>
+                            <span class="font-bold text-slate-800">{{ employee.meal_allowance|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex justify-between bg-primary-50 rounded px-2 py-1.5 border border-primary-200">
+                            <span class="text-primary-700 font-bold">الإجمالي</span>
+                            <span class="font-bold text-primary-800" x-text="currentTotal.toLocaleString('ar')"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- خانة الزيادة المطلوبة -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الزيادة المطلوبة <span class="text-red-500">*</span></label>
+                        <input type="number" name="raise_amount" x-model.number="raise" step="0.01" min="0.01" required
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                        <input type="hidden" name="new_basic_salary" x-ref="newBasicSalary"
+                               :value="(parseFloat(basic) + parseFloat(raise || 0)).toFixed(2)">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ التعديل <span class="text-red-500">*</span></label>
+                        <input type="date" name="effective_date" required value="{% now 'Y-m-d' %}"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                    </div>
+                </div>
+
+                <!-- مؤشر التغيير الحي -->
+                <div class="rounded-lg border p-3 transition-colors"
+                     :class="diff > 0 ? 'bg-emerald-50 border-emerald-200' : diff < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-bold">الإجمالي بعد التعديل</span>
+                        <span class="text-lg font-bold" :class="diff > 0 ? 'text-emerald-700' : diff < 0 ? 'text-red-700' : 'text-slate-700'" x-text="newTotal.toLocaleString('ar') + ' ر.س'"></span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1.5 text-xs">
+                        <span :class="diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-slate-500'">
+                            <span x-text="diff >= 0 ? '+' : ''"></span><span x-text="diff.toFixed(2)"></span> ر.س
+                        </span>
+                        <span class="text-slate-300">|</span>
+                        <span :class="diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-slate-500'">
+                            <span x-text="pct >= 0 ? '+' : ''"></span><span x-text="pct"></span>%
+                        </span>
+                        <span class="text-slate-300">|</span>
+                        <span class="text-slate-500">من {{ employee.basic_salary|floatformat:0 }} إلى <span x-text="newBasic.toFixed(2)"></span></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب التعديل <span class="text-red-500">*</span></label>
+                    <input type="text" name="reason" required placeholder="مثال: مكافأة سنوية"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-primary-500 focus:border-primary-500">
+                </div>
+
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" :disabled="parseFloat(raise || 0) === 0"
+                            class="hr-btn hr-btn--success"
+                            :class="{ 'is-disabled': parseFloat(raise || 0) === 0 }">
+                        <i data-lucide="save" class="w-4 h-4"></i> حفظ التعديل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Modal: نقل موظف -->
+    <div x-show="quickModal==='transfer'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="move" class="w-5 h-5 text-indigo-600"></i>
+                    <span>نقل موظف</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'web:transfer_employee' employee.id %}" class="p-4 space-y-4">
+                {% csrf_token %}
+
+                <!-- الفرع -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">الفرع الحالي</label>
+                        <div class="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded text-slate-700 font-medium">
+                            {{ employee.branch.name|default:"—" }}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الفرع الجديد <span class="text-red-500">*</span></label>
+                        <select name="new_branch" required
+                                class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <option value="">— اختر فرعاً —</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch.id }}">
+                                {{ branch.name }}{% if branch == employee.branch %} ★{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- القسم -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">القسم الحالي</label>
+                        <div class="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded text-slate-700 font-medium">
+                            {{ employee.department.name|default:"—" }}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">القسم الجديد <span class="text-red-500">*</span></label>
+                        <select name="new_department" required
+                                class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <option value="">— اختر قسماً —</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}">
+                                {{ dept.name }}{% if dept == employee.department %} ★{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- تاريخ النقل + سبب -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ النقل <span class="text-red-500">*</span></label>
+                        <input type="date" name="transfer_date" required
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">سبب النقل <span class="text-red-500">*</span></label>
+                        <input type="text" name="reason" required placeholder="مثال: هيكلة إدارية"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit"
+                            class="hr-btn hr-btn--indigo">
+                        <i data-lucide="move" class="w-4 h-4"></i> تأكيد النقل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: استلام عهدة -->
+    <div x-show="quickModal==='custody_receive'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="package-check" class="w-5 h-5 text-emerald-600"></i>
+                    <span>استلام عهدة جديدة</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'web:receive_employee_custody' employee.id %}" enctype="multipart/form-data" class="p-4 space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">اسم العهدة <span class="text-red-500">*</span></label>
+                    <input type="text" name="item_name" required placeholder="مثال: لابتوب Dell"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">التفاصيل (موديل/سيريال)</label>
+                    <textarea name="item_details" rows="2" placeholder="مثال: Dell Latitude 5420 — S/N: ABCD1234"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الكمية</label>
+                        <input type="number" name="quantity" min="1" value="1"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">القيمة التقديرية (ر.س)</label>
+                        <input type="number" name="estimated_value" min="0" step="0.01" placeholder="0.00"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الاستلام <span class="text-red-500">*</span></label>
+                        <input type="date" name="received_at" required value="{% now 'Y-m-d' %}"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند الاستلام (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.xlsx"
+                           class="w-full text-xs file:px-3 file:py-1.5 file:text-xs file:bg-emerald-50 file:border-0 file:text-emerald-700 file:rounded">
+                </div>
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--success">
+                        <i data-lucide="package-check" class="w-4 h-4"></i> إرسال للموافقة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تصفية عهدة -->
+    <div x-show="quickModal==='custody_clear'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="package-x" class="w-5 h-5 text-rose-600"></i>
+                    <span>تصفية عهدة</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'web:clear_employee_custody' employee.id %}" enctype="multipart/form-data" class="p-4 space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">العهدة المراد تصفيتها <span class="text-red-500">*</span></label>
+                    <select name="custody_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-rose-500 focus:border-rose-500 bg-white">
+                        <option value="">— اختر عهدة —</option>
+                        {% for c in active_custodies %}
+                        <option value="{{ c.id }}">{{ c.item_name }} — استُلمت {{ c.received_at|date:"Y/m/d" }}{% if c.quantity > 1 %} (×{{ c.quantity }}){% endif %}</option>
+                        {% empty %}
+                        <option value="" disabled>لا توجد عهد نشطة</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الإعادة <span class="text-red-500">*</span></label>
+                    <input type="date" name="returned_at" required value="{% now 'Y-m-d' %}"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-rose-500 focus:border-rose-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات الإعادة</label>
+                    <textarea name="return_notes" rows="2" placeholder="حالة العهدة عند الإعادة"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-rose-500 focus:border-rose-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند التصفية (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.xlsx"
+                           class="w-full text-xs file:px-3 file:py-1.5 file:text-xs file:bg-rose-50 file:border-0 file:text-rose-700 file:rounded">
+                </div>
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--rose">
+                        <i data-lucide="package-x" class="w-4 h-4"></i> إرسال للموافقة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تقديم سلفة -->
+    <div x-show="quickModal==='loan'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="coins" class="w-5 h-5 text-amber-600"></i>
+                    <span>تقديم سلفة</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'web:add_employee_loan' employee.id %}" enctype="multipart/form-data" class="p-4 space-y-3">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ السلفة (ر.س) <span class="text-red-500">*</span></label>
+                        <input type="number" name="amount" required min="0.01" step="0.01" placeholder="0.00"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الخصم الشهري (ر.س) <span class="text-red-500">*</span></label>
+                        <input type="number" name="monthly_deduction" required min="0.01" step="0.01" placeholder="0.00"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد الأقساط</label>
+                        <input type="number" name="installments" min="1" value="1"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الصرف <span class="text-red-500">*</span></label>
+                        <input type="date" name="issued_at" required value="{% now 'Y-m-d' %}"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">بداية الخصم</label>
+                        <input type="date" name="first_deduction_date"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب السلفة</label>
+                    <input type="text" name="reason" placeholder="مثال: زواج / علاج / طارئ"
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-amber-500 focus:border-amber-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند مرفق (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.xlsx"
+                           class="w-full text-xs file:px-3 file:py-1.5 file:text-xs file:bg-amber-50 file:border-0 file:text-amber-700 file:rounded">
+                </div>
+                <div class="sticky bottom-0 bg-white flex flex-wrap items-center justify-end gap-3 pt-4 pb-2 border-t border-slate-100 mt-2 -mx-4 px-4">
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--amber">
+                        <i data-lucide="coins" class="w-4 h-4"></i> إرسال للموافقة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تسجيل غياب -->
+    <div x-show="quickModal==='absence'" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto"
+             x-data="employeeAbsenceCalculator()">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="user-minus" class="w-5 h-5 text-orange-600"></i>
+                    <span>تسجيل غياب موظف</span>
+                </h3>
+                <button type="button" @click="quickModal=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'web:add_employee_absence' employee.id %}" enctype="multipart/form-data" class="p-4 space-y-3">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الغياب <span class="text-red-500">*</span></label>
+                        <input type="date" name="absence_date" required x-model="absenceDate"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد أيام الغياب <span class="text-red-500">*</span></label>
+                        <input type="number" name="days" required min="1" x-model.number="days"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                </div>
+
+                <!-- بطاقة الحساب الحي -->
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-600">إجمالي الراتب الشهري</span>
+                        <span class="font-bold text-slate-800" x-text="fmt(totalSalary) + ' ر.س'"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-600">أيام الشهر للحساب</span>
+                        <span class="font-bold text-slate-800" x-text="monthDays + ' يوم'"></span>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-orange-200 pt-1.5">
+                        <span class="text-slate-700 font-bold">سعر اليوم</span>
+                        <span class="font-bold text-orange-700" x-text="fmt(dailyRate) + ' ر.س'"></span>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-orange-200 pt-1.5">
+                        <span class="text-slate-700 font-bold">إجمالي الخصم (سعر اليوم × <span x-text="days"></span>)</span>
+                        <span class="font-bold text-rose-700 text-sm" x-text="fmt(totalDeduction) + ' ر.س'"></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب الغياب</label>
+                    <select name="reason"
+                            class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500 bg-white">
+                        <option value="">— اختر سبباً —</option>
+                        <option value="غياب بدون عذر">غياب بدون عذر</option>
+                        <option value="مرض بدون تقرير طبي">مرض بدون تقرير طبي</option>
+                        <option value="مرض مع تقرير طبي">مرض مع تقرير طبي</option>
+                        <option value="ظرف عائلي طارئ">ظرف عائلي طارئ</option>
+                        <option value="تأخر متكرر يحتسب غياباً">تأخر متكرر يحتسب غياباً</option>
+                        <option value="مغادرة قبل انتهاء الدوام">مغادرة قبل انتهاء الدوام</option>
+                        <option value="عدم الالتزام بالجدول">عدم الالتزام بالجدول</option>
+                        <option value="إيقاف عن العمل">إيقاف عن العمل</option>
+                        <option value="إجازة بدون راتب">إجازة بدون راتب</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند مرفق (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.xlsx"
+                           class="w-full text-xs file:px-3 file:py-1.5 file:text-xs file:bg-orange-50 file:border-0 file:text-orange-700 file:rounded">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="submit" class="hr-btn hr-btn--orange" data-bwignore="true">
+                        ✓ إرسال للموافقة
+                    </button>
+                    <button type="button" @click="quickModal=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تعديل إجازة -->
+    <div x-show="quickModal==='leave-edit' && leaveEdit" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null; leaveEdit=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i>
+                    <span>تعديل إجازة</span>
+                </h3>
+                <button type="button" @click="quickModal=null; leaveEdit=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="p-4 space-y-3"
+                  :action="leaveEdit ? '{% url "web:edit_employee_leave" employee.id 0 %}'.replace('/0/', '/' + leaveEdit.id + '/') : '#'">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">نوع الإجازة</label>
+                    <select name="leave_type" x-model="leaveEdit.leave_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded bg-white">
+                        <option value="annual">سنوية</option>
+                        <option value="sick">مرضية</option>
+                        <option value="unpaid">بدون راتب</option>
+                        <option value="emergency">طارئة</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">من تاريخ</label>
+                        <input type="date" name="date_from" required x-model="leaveEdit.date_from" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">إلى تاريخ</label>
+                        <input type="date" name="date_to" required x-model="leaveEdit.date_to" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="3" x-model="leaveEdit.notes" class="w-full px-3 py-2 text-sm border border-slate-300 rounded"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" class="w-full text-xs">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null; leaveEdit=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--primary">حفظ التعديل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تعديل غياب -->
+    <div x-show="quickModal==='absence-edit' && absenceEdit" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null; absenceEdit=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="pencil" class="w-5 h-5 text-orange-600"></i>
+                    <span>تعديل سجل غياب</span>
+                </h3>
+                <button type="button" @click="quickModal=null; absenceEdit=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="p-4 space-y-3"
+                  :action="absenceEdit ? '{% url "web:edit_employee_absence" employee.id 0 %}'.replace('/0/', '/' + absenceEdit.id + '/') : '#'">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الغياب <span class="text-red-500">*</span></label>
+                        <input type="date" name="absence_date" required x-model="absenceEdit.absence_date"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد أيام الغياب <span class="text-red-500">*</span></label>
+                        <input type="number" name="days" required min="1" x-model.number="absenceEdit.days"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب الغياب</label>
+                    <select name="reason" x-model="absenceEdit.reason"
+                            class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500 bg-white">
+                        <option value="">— اختر سبباً —</option>
+                        <option value="غياب بدون عذر">غياب بدون عذر</option>
+                        <option value="مرض بدون تقرير طبي">مرض بدون تقرير طبي</option>
+                        <option value="مرض مع تقرير طبي">مرض مع تقرير طبي</option>
+                        <option value="ظرف عائلي طارئ">ظرف عائلي طارئ</option>
+                        <option value="تأخر متكرر يحتسب غياباً">تأخر متكرر يحتسب غياباً</option>
+                        <option value="مغادرة قبل انتهاء الدوام">مغادرة قبل انتهاء الدوام</option>
+                        <option value="عدم الالتزام بالجدول">عدم الالتزام بالجدول</option>
+                        <option value="إيقاف عن العمل">إيقاف عن العمل</option>
+                        <option value="إجازة بدون راتب">إجازة بدون راتب</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2" x-model="absenceEdit.notes"
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-orange-500 focus:border-orange-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند مرفق (اختياري — يستبدل الحالي)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                           class="w-full text-xs file:px-3 file:py-1.5 file:text-xs file:bg-orange-50 file:border-0 file:text-orange-700 file:rounded">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null; absenceEdit=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--primary">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                        حفظ التعديل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تعديل إفادة -->
+    <div x-show="quickModal==='statement-edit' && statementEdit" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null; statementEdit=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+                    <span>تعديل إفادة / إنذار</span>
+                </h3>
+                <button type="button" @click="quickModal=null; statementEdit=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="p-4 space-y-3"
+                  :action="statementEdit ? '{% url "web:edit_employee_statement" employee.id 0 %}'.replace('/0/', '/' + statementEdit.id + '/') : '#'">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">النوع</label>
+                    <select name="statement_type" x-model="statementEdit.statement_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded bg-white">
+                        <option value="statement">إفادة</option>
+                        <option value="warning">إنذار</option>
+                        <option value="final_warning">إنذار نهائي</option>
+                        <option value="penalty">مخالفة (خصم مالي)</option>
+                        <option value="acknowledgment">إقرار</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">العنوان</label>
+                    <input type="text" name="title" required x-model="statementEdit.title" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">التاريخ</label>
+                    <input type="date" name="statement_date" required x-model="statementEdit.statement_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">التفاصيل</label>
+                    <textarea name="content" rows="4" x-model="statementEdit.content" class="w-full px-3 py-2 text-sm border border-slate-300 rounded"></textarea>
+                </div>
+                <div x-show="statementEdit && statementEdit.statement_type === 'penalty'">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ الخصم (ر.س)</label>
+                    <input type="number" step="0.01" min="0" name="deduction_amount" x-model="statementEdit.deduction_amount" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند مرفق (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" class="w-full text-xs">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null; statementEdit=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--primary">حفظ التعديل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تعديل سلفة -->
+    <div x-show="quickModal==='loan-edit' && loanEdit" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null; loanEdit=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="coins" class="w-5 h-5 text-amber-600"></i>
+                    <span>تعديل سلفة</span>
+                </h3>
+                <button type="button" @click="quickModal=null; loanEdit=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="p-4 space-y-3"
+                  :action="loanEdit ? '{% url "web:edit_employee_loan" employee.id 0 %}'.replace('/0/', '/' + loanEdit.id + '/') : '#'">
+                {% csrf_token %}
+                <template x-if="loanEdit && loanEdit.locked">
+                    <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">يوجد أقساط مُحصّلة — يمكن تعديل السبب والملاحظات والمستند فقط.</p>
+                </template>
+                <div class="grid grid-cols-2 gap-3" x-show="loanEdit && !loanEdit.locked">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ السلفة</label>
+                        <input type="number" name="amount" step="0.01" min="0.01" x-model="loanEdit.amount" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الخصم الشهري</label>
+                        <input type="number" name="monthly_deduction" step="0.01" min="0.01" x-model="loanEdit.monthly_deduction" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد الأقساط</label>
+                        <input type="number" name="installments" min="1" x-model.number="loanEdit.installments" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ الصرف</label>
+                        <input type="date" name="issued_at" x-model="loanEdit.issued_at" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-slate-700 mb-1">بداية الخصم</label>
+                        <input type="date" name="first_deduction_date" x-model="loanEdit.first_deduction_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">سبب السلفة</label>
+                    <input type="text" name="reason" x-model="loanEdit.reason" class="w-full px-3 py-2 text-sm border border-slate-300 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="2" x-model="loanEdit.notes" class="w-full px-3 py-2 text-sm border border-slate-300 rounded"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مستند (اختياري)</label>
+                    <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" class="w-full text-xs">
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null; loanEdit=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--primary">حفظ التعديل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: تعديل سجل مخصصات -->
+    <div x-show="quickModal==='ledger-edit' && ledgerEdit" x-cloak class="hr-glass-modal-overlay hr-employee-quick-modal-overlay flex items-center justify-center p-4" @click.self="quickModal=null; ledgerEdit=null">
+        <div class="hr-glass-modal w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calculator" class="w-5 h-5 text-indigo-600"></i>
+                    <span>تعديل ملاحظات السجل</span>
+                </h3>
+                <button type="button" @click="quickModal=null; ledgerEdit=null" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form method="post" class="p-4 space-y-3"
+                  :action="ledgerEdit ? '{% url "web:edit_employee_ledger" employee.id 0 %}'.replace('/0/', '/' + ledgerEdit.id + '/') : '#'">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات / تفاصيل</label>
+                    <textarea name="notes" rows="6" x-model="ledgerEdit.notes" class="w-full px-3 py-2 text-sm border border-slate-300 rounded font-mono text-xs"></textarea>
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+                    <button type="button" @click="quickModal=null; ledgerEdit=null" class="hr-btn hr-btn--muted">إلغاء</button>
+                    <button type="submit" class="hr-btn hr-btn--primary">حفظ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% endlocalize %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function employeeModalJs() {
+    try {
+        var el = document.getElementById('employee-modal-js');
+        return el && el.textContent ? JSON.parse(el.textContent) : {};
+    } catch (e) {
+        console.error('employee-modal-js parse error', e);
+        return {};
+    }
+}
+
+window.employeeEosCalculator = function() {
+    var n = employeeModalJs();
+    return {
+        hireDate: n.hire_date || '',
+        endDate: n.today_iso || '',
+        terminatedBy: 'company',
+        articleParty: 'company',
+        totalSalary: Number(n.total_salary) || 0,
+        eosSalary: Number(n.eos_salary) || 0,
+        mealAllowance: Number(n.meal_allowance) || 0,
+        remainingLeave: Number(n.remaining_leave_days) || 0,
+        usedLeaveDays: Number(n.used_leave_days) || 0,
+        accruedLeaveDays: Number(n.accrued_leave_days) || 0,
+        hasSponsor: !!n.has_sponsor,
+        pendingLoansTotal: Number(n.pending_loans_total) || 0,
+        pendingAbsences: Array.isArray(n.pending_absences) ? n.pending_absences : [],
+        resetCalculator() {
+            var fresh = employeeModalJs();
+            this.hireDate = fresh.hire_date || '';
+            this.endDate = fresh.today_iso || '';
+            this.terminatedBy = 'company';
+            this.articleParty = 'company';
+        },
+        parseLocalDate(iso) {
+            if (!iso) return null;
+            var p = String(iso).split('-');
+            if (p.length !== 3) return null;
+            return new Date(+p[0], +p[1] - 1, +p[2]);
+        },
+        completedServiceMonths(hireIso, endIso) {
+            if (!hireIso || !endIso) return 0;
+            var hire = this.parseLocalDate(hireIso);
+            var end = this.parseLocalDate(endIso);
+            if (!hire || !end || end <= hire) return 0;
+            var months = (end.getFullYear() - hire.getFullYear()) * 12 + (end.getMonth() - hire.getMonth());
+            if (hire.getDate() === 1) {
+                if (end.getDate() !== 1) months += 1;
+            } else if (end.getDate() < hire.getDate()) {
+                months -= 1;
+            }
+            return Math.max(months, 0);
+        },
+        monthlyAccruedLeaveDays(flat21Only) {
+            if (!this.hasSponsor || !this.hireDate || !this.endDate) return 0;
+            var months = this.completedServiceMonths(this.hireDate, this.endDate);
+            if (months <= 0) return 0;
+            if (flat21Only) return +(months * 1.75).toFixed(2);
+            if (months <= 60) return +(months * 1.75).toFixed(2);
+            return +((60 * 1.75) + ((months - 60) * 2.5)).toFixed(2);
+        },
+        get serviceDays() {
+            if (!this.hireDate || !this.endDate) return 0;
+            var hire = this.parseLocalDate(this.hireDate);
+            var end = this.parseLocalDate(this.endDate);
+            if (!hire || !end || end < hire) return 0;
+            return Math.max(0, Math.floor((end - hire) / 86400000));
+        },
+        get serviceYears() { return +(this.serviceDays / 360).toFixed(4); },
+        get category() {
+            if (this.serviceDays <= 180) return 'trial';
+            if (this.serviceYears <= 5) return 'first5';
+            return 'above5';
+        },
+        get isLeaveOnlySettlement() {
+            return this.terminatedBy === 'article_80' || this.terminatedBy === 'probation_end';
+        },
+        get showEosbSection() {
+            return !this.isLeaveOnlySettlement;
+        },
+        get flat21AccruedLeaveDays() {
+            return this.monthlyAccruedLeaveDays(true);
+        },
+        get tieredAccruedLeaveDays() {
+            return this.monthlyAccruedLeaveDays(false);
+        },
+        get accruedAtEndDate() {
+            if (!this.hasSponsor || !this.hireDate || !this.endDate) return 0;
+            if (this.terminatedBy === 'probation_end') return this.flat21AccruedLeaveDays;
+            return this.tieredAccruedLeaveDays;
+        },
+        get displayLeaveDays() {
+            if (!this.hasSponsor || !this.hireDate || !this.endDate) return this.remainingLeave;
+            return Math.max(0, +(this.accruedAtEndDate - this.usedLeaveDays).toFixed(2));
+        },
+        get leaveSectionLabel() {
+            if (this.terminatedBy === 'article_80') return 'رصيد الإجازة (المادة 80)';
+            if (this.terminatedBy === 'probation_end') return 'رصيد الإجازة (نهاية فترة التجربة — 21 يوم/سنة)';
+            return 'مستحقات الإجازة (21 يوم/سنة)';
+        },
+        get eosCalcType() {
+            if (this.terminatedBy === 'article_77' || this.terminatedBy === 'article_74') return this.articleParty;
+            return this.terminatedBy;
+        },
+        get usesResignationFactor() {
+            if (this.terminatedBy === 'article_74') return false;
+            return this.eosCalcType === 'employee';
+        },
+        get categoryLabel() {
+            if (!this.hasSponsor) return 'لا يوجد كفالة — لا تُحسب مكافأة نهاية الخدمة';
+            if (this.category === 'trial') return 'فترة تجربة (بدون مكافأة مالية)';
+            if (this.terminatedBy === 'article_74') {
+                if (this.articleParty === 'company') {
+                    if (this.category === 'first5') {
+                        return 'المادة 74 — ½ راتب × ' + this.serviceYears.toFixed(2) + ' سنة';
+                    }
+                    return 'المادة 74 — ½ راتب × 5 + راتب كامل × ' + (this.serviceYears - 5).toFixed(2) + ' سنة';
+                }
+                if (this.category === 'first5') {
+                    return 'المادة 74 — ⅓ راتب (' + (this.eosSalary / 3).toFixed(2) + ') × ' + this.serviceYears.toFixed(2) + ' سنة';
+                }
+                var thirdRate = (this.eosSalary / 3).toFixed(2);
+                var twoThirdRate = (this.eosSalary * 2 / 3).toFixed(2);
+                var extraYrs = (this.serviceYears - 5).toFixed(2);
+                return 'المادة 74 — ⅓ راتب (' + thirdRate + ') × 5 + ⅔ راتب (' + twoThirdRate + ') × ' + extraYrs;
+            }
+            if (this.terminatedBy === 'article_77') {
+                var base = this.eosCalcType === 'company'
+                    ? 'المادة 77 — مكافأة نهاية خدمة كاملة'
+                    : 'المادة 77 — حساب الاستقالة';
+                if (this.category === 'first5') {
+                    return base + ' — ½ راتب × ' + this.serviceYears.toFixed(2) + ' سنة';
+                }
+                var extraArt = (this.serviceYears - 5).toFixed(2);
+                return base + ' — ½ راتب × 5 + راتب كامل × ' + extraArt + ' سنة';
+            }
+            if (this.terminatedBy === 'contract_expiry') {
+                if (this.category === 'first5') {
+                    return 'انتهاء مدة العقد — ½ راتب × ' + this.serviceYears.toFixed(2) + ' سنة';
+                }
+                var extra = (this.serviceYears - 5).toFixed(2);
+                return 'انتهاء مدة العقد — ½ راتب × 5 + راتب كامل × ' + extra + ' سنة';
+            }
+            if (this.category === 'first5') return 'أول 5 سنوات — ½ راتب × ' + this.serviceYears.toFixed(2) + ' سنة';
+            var extraYears = (this.serviceYears - 5).toFixed(2);
+            return '½ راتب × 5 + راتب كامل × ' + extraYears + ' سنة';
+        },
+        get eosbBase() {
+            if (!this.hasSponsor) return 0;
+            if (this.category === 'trial') return 0;
+            if (this.terminatedBy === 'article_74' && this.articleParty === 'employee') {
+                var third = this.eosSalary / 3;
+                if (this.category === 'first5') return +(third * this.serviceYears).toFixed(2);
+                var first5Third = third * 5;
+                var twoThird = this.eosSalary * 2 / 3;
+                var extra74 = twoThird * (this.serviceYears - 5);
+                return +(first5Third + extra74).toFixed(2);
+            }
+            var half = this.eosSalary / 2;
+            if (this.category === 'first5') return +(half * this.serviceYears).toFixed(2);
+            var first5 = half * 5;
+            var extra = this.eosSalary * (this.serviceYears - 5);
+            return +(first5 + extra).toFixed(2);
+        },
+        get resignFactor() {
+            if (this.terminatedBy === 'article_74') return 1;
+            if (this.eosCalcType !== 'employee') return 1;
+            if (this.serviceYears < 2) return 0;
+            if (this.serviceYears < 5) return 1 / 3;
+            if (this.serviceYears < 10) return 2 / 3;
+            return 1;
+        },
+        get resignLabel() {
+            if (this.eosCalcType !== 'employee') return '';
+            if (this.serviceYears < 2) return 'أقل من سنتين — لا مكافأة';
+            if (this.serviceYears < 5) return '2-5 سنوات — ثلث المكافأة';
+            if (this.serviceYears < 10) return '5-10 سنوات — ثلثي المكافأة';
+            return '+10 سنوات — كاملة';
+        },
+        get eosb() {
+            if (this.isLeaveOnlySettlement) return 0;
+            return +(this.eosbBase * this.resignFactor).toFixed(2);
+        },
+        get penaltyAmount() {
+            return this.terminatedBy === 'article_77' ? +(this.totalSalary * 2).toFixed(2) : 0;
+        },
+        get proratedSalary() {
+            if (!this.endDate || !this.hireDate || this.totalSalary <= 0) return 0;
+            var end = this.parseLocalDate(this.endDate);
+            if (!end) return 0;
+            var year = end.getFullYear();
+            var month = end.getMonth();
+            var periodStart = new Date(year, month, 1);
+            var periodEnd = new Date(year, month + 1, 0);
+            var hire = this.parseLocalDate(this.hireDate);
+            var effStart = hire && hire > periodStart ? hire : periodStart;
+            var effEnd = end < periodEnd ? end : periodEnd;
+            if (effEnd < effStart) return 0;
+            var calendarDays = Math.floor((effEnd - effStart) / 86400000) + 1;
+            var monthDays = 30;
+            var payableDays = Math.min(calendarDays, monthDays);
+            return +(this.totalSalary * payableDays / monthDays).toFixed(2);
+        },
+        get loansDeduction() { return +(this.pendingLoansTotal || 0).toFixed(2); },
+        get absencesDeduction() {
+            if (!this.endDate || !this.pendingAbsences.length) return 0;
+            var endIso = this.endDate;
+            var sum = this.pendingAbsences.reduce(function(acc, row) {
+                if (row.date && row.date <= endIso) return acc + (Number(row.amount) || 0);
+                return acc;
+            }, 0);
+            return +sum.toFixed(2);
+        },
+        get dailyWage() { return +(this.totalSalary / 30).toFixed(2); },
+        get leaveComp() {
+            if (!this.hasSponsor) return 0;
+            return +(this.dailyWage * this.displayLeaveDays).toFixed(2);
+        },
+        get grossEntitlements() {
+            return +(this.eosb + this.leaveComp + this.penaltyAmount + this.proratedSalary).toFixed(2);
+        },
+        get grandTotal() {
+            return +(this.grossEntitlements - this.loansDeduction - this.absencesDeduction).toFixed(2);
+        },
+        get totalSummaryText() {
+            var parts = [];
+            if (!this.isLeaveOnlySettlement && this.hasSponsor) parts.push('مكافأة ' + this.eosb.toFixed(2));
+            if (this.hasSponsor) parts.push('إجازة ' + this.leaveComp.toFixed(2));
+            if (this.proratedSalary > 0) parts.push('راتب ' + this.proratedSalary.toFixed(2));
+            if (this.penaltyAmount > 0) parts.push('جزاء ' + this.penaltyAmount.toFixed(2));
+            var ded = [];
+            if (this.loansDeduction > 0) ded.push('سلف ' + this.loansDeduction.toFixed(2));
+            if (this.absencesDeduction > 0) ded.push('غياب ' + this.absencesDeduction.toFixed(2));
+            var text = parts.join(' + ');
+            if (ded.length) text += ' − ' + ded.join(' − ');
+            if (this.isLeaveOnlySettlement && this.hasSponsor) {
+                return (text || 'إجازة فقط') + ' (بدون مكافأة نهاية خدمة)';
+            }
+            return text || '—';
+        }
+    };
+};
+
+window.employeeSalaryRaiseCalculator = function() {
+    var n = employeeModalJs();
+    return {
+        basic: Number(n.basic_salary) || 0,
+        housing: Number(n.housing_allowance) || 0,
+        transport: Number(n.transport_allowance) || 0,
+        other: Number(n.other_allowance) || 0,
+        cash: Number(n.cash_amount) || 0,
+        meal: Number(n.meal_allowance) || 0,
+        raise: 0,
+        get newBasic() { return parseFloat(this.basic) + parseFloat(this.raise || 0); },
+        get currentTotal() {
+            return parseFloat(this.basic) + parseFloat(this.housing) + parseFloat(this.transport)
+                + parseFloat(this.other) + parseFloat(this.cash) + parseFloat(this.meal);
+        },
+        get newTotal() {
+            return this.newBasic + parseFloat(this.housing) + parseFloat(this.transport)
+                + parseFloat(this.other) + parseFloat(this.cash) + parseFloat(this.meal);
+        },
+        get diff() { return this.newTotal - this.currentTotal; },
+        get pct() { return this.currentTotal ? ((this.diff / this.currentTotal) * 100).toFixed(1) : 0; }
+    };
+};
+
+window.employeeLeaveForm = function() {
+    var n = employeeModalJs();
+    return {
+        ltype: 'annual',
+        dfrom: '',
+        dto: '',
+        balance: Number(n.remaining_leave_days) || 0,
+        hasSponsor: !!n.has_sponsor,
+        get days() {
+            if (!this.dfrom || !this.dto) return 0;
+            var a = new Date(this.dfrom), b = new Date(this.dto);
+            if (b < a) return 0;
+            return Math.floor((b - a) / 86400000) + 1;
+        },
+        get exceeds() { return this.ltype === 'annual' && this.days > this.balance; },
+        get canSubmit() { return this.hasSponsor && this.days > 0 && !this.exceeds; }
+    };
+};
+
+window.employeeAbsenceCalculator = function() {
+    var n = employeeModalJs();
+    return {
+        totalSalary: Number(n.total_salary) || 0,
+        absenceDate: n.today_iso || new Date().toISOString().slice(0, 10),
+        days: 1,
+        monthDays: 30,
+        get dailyRate() { return this.totalSalary / 30; },
+        get totalDeduction() { return this.dailyRate * (parseInt(this.days, 10) || 0); },
+        fmt(v) {
+            return (Math.round((v + Number.EPSILON) * 100) / 100)
+                .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    };
+};
+
+window.scheduleBoxes = function(loadInitial) {
+    if (loadInitial === undefined) loadInitial = true;
+    var initial = [];
+    if (loadInitial) {
+        try {
+            var el = document.getElementById('schedule-boxes-data');
+            if (el && el.textContent) {
+                initial = JSON.parse(el.textContent) || [];
+            }
+        } catch (e) { console.error('schedule load error', e); }
+    }
+    var normalizeBox = function(box) {
+        if (!box.day_codes || typeof box.day_codes !== 'object') box.day_codes = {};
+        Object.keys(box.day_codes).forEach(function(k) {
+            var c = box.day_codes[k];
+            if (c === 'D' || c === 'd') box.day_codes[k] = '✓';
+            if ((c || '').toString().toLowerCase() === 'a') delete box.day_codes[k];
+        });
+        if (Array.isArray(box.days)) {
+            box.days.forEach(function(d) {
+                var k = String(d);
+                if (!box.day_codes[k]) box.day_codes[k] = '✓';
+            });
+        }
+        if (!box.days) box.days = [];
+        var legacyShiftLabels = {
+            1: 'الوردية 1 (8ص–4م)',
+            2: 'الوردية 2 (4م–12ص)',
+            3: 'الوردية 3 (12ص–8ص)'
+        };
+        if (!box.shift_label) {
+            if (typeof box.shift === 'number' && legacyShiftLabels[box.shift]) {
+                box.shift_label = legacyShiftLabels[box.shift];
+            } else if (box.shift && typeof box.shift === 'string') {
+                box.shift_label = String(box.shift).trim();
+            } else {
+                box.shift_label = '';
+            }
+        }
+        if (!box.notes) box.notes = '';
+        return box;
+    };
+    initial = initial.map(normalizeBox);
+
+    return {
+        boxes: initial,
+        editable: true,
+        editMode: false,
+        _initialCount: initial.length,
+        months: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
+        weekDays: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+        dayNumbers: Array.from({ length: 31 }, function(_, i) { return i + 1; }),
+        codeCycle: ['', '✓', 'off'],
+        _seq: 1,
+        page: 1,
+        perPage: 4,
+        get totalPages() { return Math.max(1, Math.ceil(this.boxes.length / this.perPage)); },
+        get pagedBoxesOnly() {
+            var start = (this.page - 1) * this.perPage;
+            return this.boxes.slice(start, start + this.perPage);
+        },
+        get pagedBoxes() {
+            var start = (this.page - 1) * this.perPage;
+            return this.boxes.slice(start, start + this.perPage).map(function(b, i) {
+                return { box: b, gIdx: start + i };
+            });
+        },
+        gotoPage(p) {
+            var tp = this.totalPages;
+            if (p < 1) p = 1;
+            if (p > tp) p = tp;
+            this.page = p;
+            this.$nextTick(function() { if (window.lucide) lucide.createIcons(); });
+        },
+        daysInMonth(y, m) { return new Date(y, m, 0).getDate(); },
+        isDayInMonth(box, day) { return day <= this.daysInMonth(box.year, box.month); },
+        weekdayForDay(box, day) {
+            if (!this.isDayInMonth(box, day)) return '';
+            var wd = new Date(box.year, box.month - 1, day).getDay();
+            return this.weekDays[wd] || '';
+        },
+        shiftShortLabel(box) {
+            var label = (box.shift_label || '').trim();
+            return label || '—';
+        },
+        scheduleRecordsLabel(count) {
+            var n = Number(count) || 0;
+            if (n <= 0) return '';
+            if (n === 1) return 'شهر واحد مسجّل';
+            if (n === 2) return 'شهران مسجّلان';
+            if (n >= 3 && n <= 10) return n + ' أشهر مسجّلة';
+            return n + ' شهراً مسجّلاً';
+        },
+        boxMonthLabel(box) {
+            return (this.months[box.month - 1] || box.month) + ' ' + box.year;
+        },
+        boxYearMonthValue(box) {
+            var y = Number(box.year) || new Date().getFullYear();
+            var m = Number(box.month) || 1;
+            if (m < 1) m = 1;
+            if (m > 12) m = 12;
+            return y + '-' + String(m).padStart(2, '0');
+        },
+        setBoxYearMonthFromInput(box, value) {
+            if (!value || typeof value !== 'string') return;
+            var parts = value.split('-');
+            if (parts.length < 2) return;
+            var y = parseInt(parts[0], 10);
+            var m = parseInt(parts[1], 10);
+            if (!isNaN(y) && y >= 2020 && y <= 2100) box.year = y;
+            if (!isNaN(m) && m >= 1 && m <= 12) box.month = m;
+        },
+        get sortedBoxes() {
+            return this.boxes.slice().sort(function(a, b) {
+                if (a.year !== b.year) return b.year - a.year;
+                return b.month - a.month;
+            });
+        },
+        displayBoxes() {
+            if (!this.focusedBoxId) return this.boxes;
+            var id = this.focusedBoxId;
+            var found = this.boxes.filter(function(b) { return b.id === id; });
+            return found.length ? found : this.boxes;
+        },
+        modalTitle() {
+            if (this.focusedBoxId) {
+                var box = this.boxes.find(function(b) { return b.id === this.focusedBoxId; }.bind(this));
+                if (box) return 'جدول الدوام — ' + this.boxMonthLabel(box);
+            }
+            if (!this.boxes.length) return 'جدول الدوام الشهري';
+            return 'جدول الدوام — ' + this.scheduleRecordsLabel(this.boxes.length);
+        },
+        getDayCode(box, day) {
+            if (!this.isDayInMonth(box, day)) return '';
+            return (box.day_codes && box.day_codes[String(day)]) || '';
+        },
+        isWorkDayCode(code) {
+            var c = (code || '').toString();
+            return c === '✓' || c.toLowerCase() === 'd' || c.toLowerCase() === 'check';
+        },
+        formatDayCode(code) {
+            if (!code) return '—';
+            if (this.isWorkDayCode(code)) return '✓';
+            return code;
+        },
+        syncDaysFromCodes(box) {
+            if (!box.day_codes) box.day_codes = {};
+            box.days = Object.keys(box.day_codes)
+                .filter(function(k) {
+                    return this.isWorkDayCode(box.day_codes[k]);
+                }.bind(this))
+                .map(function(k) { return parseInt(k, 10); })
+                .filter(function(d) { return d >= 1 && d <= 31; })
+                .sort(function(a, b) { return a - b; });
+        },
+        workDaysCount(box) {
+            this.syncDaysFromCodes(box);
+            return (box.days || []).length;
+        },
+        cycleDayCode(box, day) {
+            if (!this.editable || !this.isDayInMonth(box, day)) return;
+            if (!box.day_codes) box.day_codes = {};
+            var key = String(day);
+            var raw = box.day_codes[key] || '';
+            var cur = raw === '✓' ? '✓' : raw.toLowerCase();
+            if (cur === 'd') cur = '✓';
+            var cycle = this.codeCycle;
+            var idx = -1;
+            for (var i = 0; i < cycle.length; i++) {
+                var step = cycle[i] === '✓' ? '✓' : (cycle[i] || '').toLowerCase();
+                if (step === cur) { idx = i; break; }
+            }
+            if (idx < 0) idx = 0;
+            var next = cycle[(idx + 1) % cycle.length];
+            if (next) box.day_codes[key] = next === '✓' ? '✓' : next;
+            else delete box.day_codes[key];
+            this.syncDaysFromCodes(box);
+        },
+        addBox() {
+            var d = new Date();
+            var box = normalizeBox({
+                id: 'b' + Date.now() + (this._seq++),
+                year: d.getFullYear(),
+                month: d.getMonth() + 1,
+                days: [],
+                day_codes: {},
+                shift_label: '',
+                notes: ''
+            });
+            this.boxes.push(box);
+            this.page = this.totalPages;
+            this.$nextTick(function() { if (window.lucide) lucide.createIcons(); });
+        },
+        removeBox(i) {
+            this.boxes.splice(i, 1);
+            if (this.page > this.totalPages) this.page = this.totalPages;
+        },
+        removeBoxById(id) {
+            var i = this.boxes.findIndex(function(b) { return b.id === id; });
+            if (i >= 0) this.removeBox(i);
+        },
+        deleteBoxPersist(boxId) {
+            var self = this;
+            var box = this.boxes.find(function(b) { return b.id === boxId; });
+            var label = box ? this.boxMonthLabel(box) : '';
+            if (!window.confirm('حذف جدول دوام «' + label + '» نهائياً؟')) return;
+            this.removeBoxById(boxId);
+            this.boxes.forEach(function(b) { self.syncDaysFromCodes(b); });
+            var form = this.$refs.scheduleSaveForm;
+            if (!form) return;
+            var confirmInput = form.querySelector('[name=confirm_clear]');
+            if (confirmInput) confirmInput.value = '1';
+            var actionInput = form.querySelector('[name=schedule_action]');
+            if (actionInput) actionInput.value = 'delete';
+            var deletedLabelInput = form.querySelector('[name=deleted_month_label]');
+            if (deletedLabelInput) deletedLabelInput.value = label;
+            var boxesInput = form.querySelector('[name=boxes_json]');
+            if (boxesInput) boxesInput.value = JSON.stringify(this.boxes);
+            form.submit();
+        }
+    };
+};
+</script>
+{% endblock %}

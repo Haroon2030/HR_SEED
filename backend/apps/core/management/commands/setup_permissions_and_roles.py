@@ -1,0 +1,374 @@
+"""
+إعداد نظام الصلاحيات والأدوار الكامل
+python manage.py setup_permissions_and_roles
+"""
+from django.core.management.base import BaseCommand
+from django.db import transaction
+from apps.core.models import AppModule, Role, Permission
+from apps.core.permissions_registry import DEFAULT_MODULE_META
+from apps.core.role_catalog import ROLE_CATALOG
+
+
+def _role_meta(role_type: str) -> dict:
+    entry = ROLE_CATALOG[role_type]
+    return {
+        'name': entry['name'],
+        'description': entry['description'],
+        'role_type': role_type,
+        'is_system_role': True,
+    }
+
+
+class Command(BaseCommand):
+    help = 'إنشاء الصلاحيات والأدوار الأساسية الأربعة في النظام'
+
+    def handle(self, *args, **options):
+        with transaction.atomic():
+            self.stdout.write(self.style.WARNING('🔧 جاري إعداد الصلاحيات والأدوار...'))
+            
+            # 1️⃣ إنشاء الصلاحيات
+            permissions = self.create_permissions()
+            
+            # 2️⃣ إنشاء الأدوار الأربعة
+            self.create_roles(permissions)
+            
+            self.stdout.write(self.style.SUCCESS('✅ تم إعداد نظام الصلاحيات والأدوار بنجاح!'))
+
+    def create_permissions(self):
+        """إنشاء جميع الصلاحيات في النظام"""
+        self.stdout.write(self.style.HTTP_INFO('📋 إنشاء الصلاحيات...'))
+        
+        permissions_data = [
+            # ═══════════════════════════════════════════════════════════
+            # الموظفين (Employees)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'employees.view', 'name': 'عرض الموظفين', 'module': 'employees'},
+            {'code': 'employees.add', 'name': 'إضافة موظف', 'module': 'employees'},
+            {'code': 'employees.edit', 'name': 'تعديل موظف', 'module': 'employees'},
+            {'code': 'employees.delete', 'name': 'حذف موظف', 'module': 'employees'},
+            {'code': 'employees.view_salary', 'name': 'عرض رواتب الموظفين', 'module': 'employees'},
+            {'code': 'employees.edit_salary', 'name': 'تعديل رواتب الموظفين', 'module': 'employees'},
+            {'code': 'employees.edit_absence', 'name': 'تعديل غياب موظف', 'module': 'employees'},
+            {'code': 'employees.delete_absence', 'name': 'حذف غياب موظف', 'module': 'employees'},
+            {'code': 'employees.edit_statement', 'name': 'تعديل إفادة / إنذار', 'module': 'employees'},
+            {'code': 'employees.delete_statement', 'name': 'حذف إفادة / إنذار', 'module': 'employees'},
+            {'code': 'employees.edit_loan', 'name': 'تعديل سلفة موظف', 'module': 'employees'},
+            {'code': 'employees.delete_loan', 'name': 'حذف سلفة موظف', 'module': 'employees'},
+            {'code': 'employees.edit_ledger', 'name': 'تعديل سجل مخصصات', 'module': 'employees'},
+            {'code': 'employees.delete_ledger', 'name': 'حذف سجل مخصصات', 'module': 'employees'},
+            {'code': 'employees.edit_leave', 'name': 'تعديل إجازة موظف', 'module': 'employees'},
+            {'code': 'employees.delete_leave', 'name': 'حذف إجازة موظف', 'module': 'employees'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # الأقسام والفروع (Departments & Branches)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'departments.view', 'name': 'عرض الأقسام', 'module': 'departments'},
+            {'code': 'departments.manage', 'name': 'إدارة الأقسام', 'module': 'departments'},
+            {'code': 'branches.view', 'name': 'عرض الفروع', 'module': 'departments'},
+            {'code': 'branches.manage', 'name': 'إدارة الفروع', 'module': 'departments'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # الإجازات (أكواد legacy — سير الإجازات في الواجهة يعتمد employees.edit)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'leaves.view', 'name': 'عرض الإجازات', 'module': 'leaves'},
+            {'code': 'leaves.request', 'name': 'طلب إجازة', 'module': 'leaves'},
+            {'code': 'leaves.approve', 'name': 'الموافقة على الإجازات', 'module': 'leaves'},
+            {'code': 'leaves.manage', 'name': 'إدارة الإجازات', 'module': 'leaves'},
+
+            # ═══════════════════════════════════════════════════════════
+            # الحضور والبصمة
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'attendance.view', 'name': 'عرض الحضور والبصمة', 'module': 'attendance'},
+            {'code': 'attendance.manage', 'name': 'إدارة أجهزة البصمة', 'module': 'attendance'},
+            {'code': 'attendance_screen_devices.view', 'name': 'الحضور — أجهزة البصمة', 'module': 'attendance_screen_devices'},
+            {'code': 'attendance_screen_report.view', 'name': 'الحضور — تقرير البصمة', 'module': 'attendance_screen_report'},
+            {'code': 'attendance_screen_late_alerts.view', 'name': 'الحضور — إنذار تأخير البصمة', 'module': 'attendance_screen_late_alerts'},
+            {'code': 'attendance_screen_records.view', 'name': 'الحضور — سجلات الحضور', 'module': 'attendance_screen_records'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # الرواتب (Payroll)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'payroll.view', 'name': 'عرض الرواتب', 'module': 'payroll'},
+            {'code': 'payroll.manage', 'name': 'إدارة الرواتب', 'module': 'payroll'},
+            {'code': 'payroll.process', 'name': 'معالجة الرواتب', 'module': 'payroll'},
+            {'code': 'payroll.view_reports', 'name': 'عرض تقارير الرواتب', 'module': 'payroll'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # المستخدمين (Users)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'users.view', 'name': 'عرض المستخدمين', 'module': 'users'},
+            {'code': 'users.add', 'name': 'إضافة مستخدم', 'module': 'users'},
+            {'code': 'users.edit', 'name': 'تعديل مستخدم', 'module': 'users'},
+            {'code': 'users.delete', 'name': 'حذف مستخدم', 'module': 'users'},
+            {'code': 'users.manage_roles', 'name': 'إدارة الأدوار', 'module': 'users'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # التقارير (Reports)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'reports.view', 'name': 'عرض التقارير', 'module': 'reports'},
+            {'code': 'reports.view_all', 'name': 'عرض جميع التقارير', 'module': 'reports'},
+            {'code': 'reports.export', 'name': 'تصدير التقارير', 'module': 'reports'},
+            
+            # ═══════════════════════════════════════════════════════════
+            # الإعدادات (Settings)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'settings.view', 'name': 'عرض الإعدادات', 'module': 'settings'},
+            {'code': 'settings.manage', 'name': 'إدارة الإعدادات', 'module': 'settings'},
+
+            # ═══════════════════════════════════════════════════════════
+            # طلبات العمليات (Operations workflow)
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'operations.view', 'name': 'عرض طلبات العمليات', 'module': 'operations'},
+            {'code': 'operations.approve_branch', 'name': 'موافقة مدير الفرع', 'module': 'operations'},
+            {'code': 'operations.approve_admin', 'name': 'موافقة مدير الإدارة', 'module': 'operations'},
+            {'code': 'operations.approve_gm', 'name': 'موافقة المدير العام', 'module': 'operations'},
+            {'code': 'operations.approve_officer', 'name': 'تنفيذ موظف الموارد', 'module': 'operations'},
+            {'code': 'operations.return', 'name': 'إرجاع طلب للتعديل', 'module': 'operations'},
+            {'code': 'operations.resubmit', 'name': 'إعادة إرسال طلب', 'module': 'operations'},
+
+            # ═══════════════════════════════════════════════════════════
+            # إدارة الصيانة
+            # ═══════════════════════════════════════════════════════════
+            {'code': 'maintenance.view', 'name': 'عرض طلبات الصيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.add', 'name': 'رفع طلب صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.assign', 'name': 'إسناد طلب صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.manage', 'name': 'إغلاق طلب صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.confirm_branch', 'name': 'تأكيد صيانة الفرع', 'module': 'maintenance'},
+            {'code': 'maintenance.return', 'name': 'إرجاع طلب صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.workers_view', 'name': 'عرض عمال الصيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.workers_add', 'name': 'إضافة عامل صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.workers_edit', 'name': 'تعديل عامل صيانة', 'module': 'maintenance'},
+            {'code': 'maintenance.workers_delete', 'name': 'حذف عامل صيانة', 'module': 'maintenance'},
+
+            # شاشات فرعية — مصفوفة الصلاحيات (كل شاشة صف مستقل)
+            {'code': 'maintenance_screen_requests.view', 'name': 'صيانة — طلبات الصيانة', 'module': 'maintenance_screen_requests'},
+            {'code': 'maintenance_screen_request_add.view', 'name': 'صيانة — طلب سريع', 'module': 'maintenance_screen_request_add'},
+            {'code': 'maintenance_screen_assign.view', 'name': 'صيانة — إسناد الطلبات', 'module': 'maintenance_screen_assign'},
+            {'code': 'maintenance_screen_manager_close.view', 'name': 'صيانة — إغلاق مدير الصيانة', 'module': 'maintenance_screen_manager_close'},
+            {'code': 'maintenance_screen_branch_confirm.view', 'name': 'صيانة — تأكيد الفرع', 'module': 'maintenance_screen_branch_confirm'},
+            {'code': 'maintenance_screen_return.view', 'name': 'صيانة — إرجاع الطلب', 'module': 'maintenance_screen_return'},
+            {'code': 'maintenance_setup.view', 'name': 'صيانة — تهيئة (عرض)', 'module': 'maintenance_setup'},
+            {'code': 'maintenance_setup.add', 'name': 'صيانة — تهيئة (إضافة)', 'module': 'maintenance_setup'},
+            {'code': 'maintenance_setup.edit', 'name': 'صيانة — تهيئة (تعديل)', 'module': 'maintenance_setup'},
+            {'code': 'maintenance_setup.delete', 'name': 'صيانة — تهيئة (حذف)', 'module': 'maintenance_setup'},
+        ]
+        
+        created_permissions = {}
+        for perm_data in permissions_data:
+            module_code = perm_data['module']
+            if '.' not in perm_data['code']:
+                continue
+            operation = perm_data['code'].split('.', 1)[1]
+            meta = DEFAULT_MODULE_META.get(module_code, {})
+            module, _ = AppModule.objects.update_or_create(
+                code=module_code,
+                defaults={
+                    'name': meta.get('name', module_code),
+                    'icon': meta.get('icon', 'package'),
+                    'order': meta.get('order', 100),
+                    'is_active': True,
+                },
+            )
+            perm, created = Permission.objects.update_or_create(
+                code=perm_data['code'],
+                defaults={
+                    'name': perm_data['name'],
+                    'module': module,
+                    'operation': operation,
+                    'is_active': True,
+                },
+            )
+            if created:
+                self.stdout.write(f'  ✓ تم إنشاء: {perm.name}')
+            created_permissions[perm.code] = perm
+        
+        self.stdout.write(self.style.SUCCESS(f'✅ تم إنشاء {len(created_permissions)} صلاحية'))
+        return created_permissions
+
+    def create_roles(self, permissions):
+        """إنشاء الأدوار الأربعة مع صلاحياتها"""
+        self.stdout.write(self.style.HTTP_INFO('👥 إنشاء الأدوار...'))
+        
+        roles_config = [
+            # ═══════════════════════════════════════════════════════════
+            # 1️⃣ الأدمن (كل الصلاحيات)
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.ADMIN),
+                'permissions': list(permissions.keys()),  # كل الصلاحيات
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 2️⃣ مدير فرع
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.MANAGER),
+                'permissions': [
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'employees.view_salary',
+                    'departments.view',
+                    'branches.view',
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    'reports.view',
+                    'reports.export',
+                    'operations.view',
+                    'operations.approve_branch',
+                    'operations.return',
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.confirm_branch',
+                ],
+            },
+
+            # ═══════════════════════════════════════════════════════════
+            # 2b مدير إدارة
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.ADMIN_MANAGER),
+                'permissions': [
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'employees.view_salary',
+                    'departments.view',
+                    'branches.view',
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    'reports.view',
+                    'reports.export',
+                    'operations.view',
+                    'operations.approve_admin',
+                    'operations.return',
+                ],
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 3️⃣ الموارد البشرية
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.HR_MANAGER),
+                'permissions': [
+                    # الموظفين
+                    'employees.view',
+                    'employees.add',
+                    'employees.edit',
+                    'employees.delete',
+                    'employees.view_salary',
+                    'employees.edit_salary',
+                    'employees.edit_absence',
+                    'employees.delete_absence',
+                    'employees.edit_statement',
+                    'employees.delete_statement',
+                    'employees.edit_loan',
+                    'employees.delete_loan',
+                    'employees.edit_ledger',
+                    'employees.delete_ledger',
+                    'employees.edit_leave',
+                    'employees.delete_leave',
+                    # الأقسام والفروع
+                    'departments.view',
+                    'departments.manage',
+                    'branches.view',
+                    'branches.manage',
+                    # الإجازات (أكواد legacy)
+                    'leaves.view',
+                    'leaves.approve',
+                    'leaves.manage',
+                    # الرواتب
+                    'payroll.view',
+                    'payroll.manage',
+                    'payroll.process',
+                    'payroll.view_reports',
+                    # المستخدمين
+                    'users.view',
+                    'users.add',
+                    'users.edit',
+                    # التقارير
+                    'reports.view',
+                    'reports.view_all',
+                    'reports.export',
+                    # طلبات العمليات
+                    'operations.view',
+                    'operations.approve_branch',
+                    'operations.approve_admin',
+                    'operations.approve_gm',
+                    'operations.approve_officer',
+                    'operations.return',
+                    'operations.resubmit',
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.assign',
+                    'maintenance.manage',
+                    'maintenance.confirm_branch',
+                    'maintenance.return',
+                    'maintenance.workers_view',
+                    'maintenance.workers_add',
+                    'maintenance.workers_edit',
+                    'maintenance.workers_delete',
+                ],
+            },
+
+            # ═══════════════════════════════════════════════════════════
+            # 3b مدير الصيانة
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.MAINTENANCE_MANAGER),
+                'permissions': [
+                    'maintenance.view',
+                    'maintenance.add',
+                    'maintenance.assign',
+                    'maintenance.manage',
+                    'maintenance.confirm_branch',
+                    'maintenance.return',
+                    'maintenance.workers_view',
+                    'maintenance.workers_add',
+                    'maintenance.workers_edit',
+                    'maintenance.workers_delete',
+                    'branches.view',
+                ],
+            },
+            
+            # ═══════════════════════════════════════════════════════════
+            # 4️⃣ موظف عادي
+            # ═══════════════════════════════════════════════════════════
+            {
+                **_role_meta(Role.RoleType.EMPLOYEE),
+                'permissions': [
+                    # عرض بياناته فقط
+                    'employees.view',  # (سيتم تطبيق فلتر لرؤية نفسه فقط في الـ views)
+                    # طلب إجازة
+                    'leaves.request',
+                    'leaves.view',  # (يرى إجازاته فقط)
+                ],
+            },
+        ]
+        
+        for role_config in roles_config:
+            # إنشاء أو تحديث الدور
+            role, created = Role.objects.update_or_create(
+                role_type=role_config['role_type'],
+                defaults={
+                    'name': role_config['name'],
+                    'description': role_config['description'],
+                    'is_system_role': role_config['is_system_role'],
+                    'is_active': True,
+                }
+            )
+            
+            # ربط الصلاحيات
+            role_permissions = [permissions[code] for code in role_config['permissions'] if code in permissions]
+            role.permissions.set(role_permissions)
+            
+            action = 'إنشاء' if created else 'تحديث'
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'  ✓ تم {action} الدور: {role.name} ({len(role_permissions)} صلاحية)'
+                )
+            )
+        
+        self.stdout.write(self.style.SUCCESS(f'✅ تم إنشاء/تحديث {len(roles_config)} دور'))

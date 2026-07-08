@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-4" x-data="{ activeTab: 'employees' }">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            {% url 'web:list_branches' as back_url %}
+            {% include 'components/glass_back_link.html' with back_url=back_url aria_label='رجوع لقائمة الفروع' %}
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-2xl font-bold text-slate-900">{{ branch.name }}</h1>
+                    <span class="px-2 py-1 text-xs font-mono font-semibold bg-slate-100 text-slate-800 rounded-md">
+                        {{ branch.code }}
+                    </span>
+                </div>
+                <p class="text-slate-500 text-sm mt-1">{{ branch.company.name }}</p>
+            </div>
+        </div>
+        {% url 'web:edit_branch' branch.id as edit_branch_url %}
+        {% include "components/hr_btn.html" with href=edit_branch_url label="تعديل الفرع" icon="pencil" %}
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Total Employees -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">إجمالي الموظفين</p>
+                    <p class="text-3xl font-bold text-slate-900">{{ branch.employees_count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <i data-lucide="users" class="w-6 h-6 text-emerald-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost Centers Count -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">مراكز التكلفة</p>
+                    <p class="text-3xl font-bold text-blue-600">{{ cost_centers.count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i data-lucide="target" class="w-6 h-6 text-blue-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Departments Count -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">الأقسام</p>
+                    <p class="text-3xl font-bold text-purple-600">{{ departments.count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i data-lucide="grid-3x3" class="w-6 h-6 text-purple-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">الحالة</p>
+                    <p class="text-xl font-bold {% if branch.is_active %}text-emerald-600{% else %}text-slate-600{% endif %}">
+                        {% if branch.is_active %}نشط{% else %}معطل{% endif %}
+                    </p>
+                </div>
+                <div class="w-12 h-12 {% if branch.is_active %}bg-emerald-100{% else %}bg-slate-100{% endif %} rounded-lg flex items-center justify-center">
+                    <i data-lucide="{% if branch.is_active %}check-circle{% else %}x-circle{% endif %}" class="w-6 h-6 {% if branch.is_active %}text-emerald-600{% else %}text-slate-600{% endif %}"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Branch Details -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200">
+            <h2 class="text-lg font-bold text-slate-900">معلومات الفرع</h2>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-1">
+                <p class="text-xs font-semibold text-slate-500 uppercase">الشركة</p>
+                <p class="text-sm text-slate-900">{{ branch.company.name }}</p>
+            </div>
+            
+            {% if branch.manager %}
+            <div class="space-y-1">
+                <p class="text-xs font-semibold text-slate-500 uppercase">مدير الفرع</p>
+                <p class="text-sm text-slate-900">{{ branch.manager.get_full_name|default:branch.manager.username }}</p>
+            </div>
+            {% endif %}
+            
+            {% if branch.phone %}
+            <div class="space-y-1">
+                <p class="text-xs font-semibold text-slate-500 uppercase">الهاتف</p>
+                <p class="text-sm text-slate-900">{{ branch.phone }}</p>
+            </div>
+            {% endif %}
+            
+            {% if branch.email %}
+            <div class="space-y-1">
+                <p class="text-xs font-semibold text-slate-500 uppercase">البريد الإلكتروني</p>
+                <p class="text-sm text-slate-900">{{ branch.email }}</p>
+            </div>
+            {% endif %}
+            
+            {% if branch.address %}
+            <div class="space-y-1 md:col-span-2">
+                <p class="text-xs font-semibold text-slate-500 uppercase">العنوان</p>
+                <p class="text-sm text-slate-900">{{ branch.address }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% include "components/page_tabs_start.html" with aria_label="أقسام الفرع" %}
+            <button type="button" role="tab" class="hr-tab-btn" @click="activeTab = 'employees'" :class="activeTab === 'employees' && 'is-active'">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span>الموظفون ({{ employees.count }})</span>
+            </button>
+            <button type="button" role="tab" class="hr-tab-btn" @click="activeTab = 'cost_centers'" :class="activeTab === 'cost_centers' && 'is-active'">
+                <i data-lucide="target" class="w-4 h-4"></i>
+                <span>مراكز التكلفة ({{ cost_centers.count }})</span>
+            </button>
+            <button type="button" role="tab" class="hr-tab-btn" @click="activeTab = 'departments'" :class="activeTab === 'departments' && 'is-active'">
+                <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                <span>الأقسام ({{ departments.count }})</span>
+            </button>
+        {% include "components/page_tabs_body_start.html" %}
+
+        <!-- Tab Content: Employees (سجلات الموارد البشرية) -->
+        <div x-show="activeTab === 'employees'" class="fade-in">
+            {% if employees %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الموظف</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">رقم الهوية</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">القسم</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">المهنة</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الحالة</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for employee in employees %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                        <i data-lucide="user" class="w-5 h-5 text-primary-600"></i>
+                                    </div>
+                                    <span class="text-sm font-medium text-slate-900">{{ employee.name }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-500 font-mono">{{ employee.id_number|default:"—" }}</td>
+                            <td class="px-6 py-4 text-sm text-slate-500">
+                                {% if employee.department %}{{ employee.department.name }}{% else %}—{% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-500">
+                                {% if employee.profession %}{{ employee.profession.name }}{% else %}—{% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% employee_status_badge employee %}
+                            </td>
+                            <td class="px-6 py-4 text-left">
+                                <a href="{% url 'web:view_employee' employee.id %}" class="text-xs text-primary-600 hover:text-primary-800 font-medium">عرض الملف</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-6 py-12 text-center">
+                <i data-lucide="users" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                <p class="text-slate-500">لا بيانات</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tab Content: Cost Centers -->
+        <div x-show="activeTab === 'cost_centers'" class="fade-in" x-cloak>
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-900">مراكز التكلفة</h3>
+                {% url 'web:add_cost_center' branch.id as add_cc_branch_url %}
+                {% include "components/hr_btn.html" with href=add_cc_branch_url label="إضافة مركز تكلفة" icon="plus" size="sm" %}
+            </div>
+            
+            {% if cost_centers %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">رقم المركز</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">اسم المركز</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الميزانية</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">عدد الأقسام</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الحالة</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for cost_center in cost_centers %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <span class="font-mono text-sm font-semibold text-slate-900">{{ cost_center.code }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm font-medium text-slate-900">{{ cost_center.name }}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600">{{ cost_center.budget|floatformat:2 }} ريال</td>
+                            <td class="px-6 py-4 text-sm text-slate-600">{{ cost_center.departments_count }}</td>
+                            <td class="px-6 py-4">
+                                {% if cost_center.is_active %}
+                                <span class="px-2 py-1 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full">نشط</span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded-full">معطل</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% url 'web:edit_cost_center' cost_center.id as act_edit %}
+                                {% include "components/table_actions.html" with edit_url=act_edit edit_title="تعديل" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-6 py-12 text-center">
+                <i data-lucide="target" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                <p class="text-slate-500 mb-4">لا بيانات</p>
+                {% include "components/hr_btn.html" with href=add_cc_branch_url label="إضافة مركز تكلفة" icon="plus" %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tab Content: Departments -->
+        <div x-show="activeTab === 'departments'" class="fade-in" x-cloak>
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-900">الأقسام</h3>
+                {% url 'web:add_department' branch.id as add_dept_branch_url %}
+                {% include "components/hr_btn.html" with href=add_dept_branch_url label="إضافة قسم" icon="plus" size="sm" %}
+            </div>
+            
+            {% if departments %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">رقم القسم</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">اسم القسم</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">مركز التكلفة</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">عدد الموظفين</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الحالة</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for department in departments %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <span class="font-mono text-sm font-semibold text-slate-900">{{ department.code }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm font-medium text-slate-900">{{ department.name }}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600">
+                                {% if department.cost_center %}{{ department.cost_center.name }}{% else %}—{% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-slate-600">{{ department.employees_count }}</td>
+                            <td class="px-6 py-4">
+                                {% if department.is_active %}
+                                <span class="px-2 py-1 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full">نشط</span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded-full">معطل</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% url 'web:edit_department' department.id as act_edit %}
+                                {% include "components/table_actions.html" with edit_url=act_edit edit_title="تعديل" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-6 py-12 text-center">
+                <i data-lucide="grid-3x3" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                <p class="text-slate-500 mb-4">لا بيانات</p>
+                {% include "components/hr_btn.html" with href=add_dept_branch_url label="إضافة قسم" icon="plus" %}
+            </div>
+            {% endif %}
+        </div>
+    {% include "components/page_tabs_end.html" %}
+</div>
+
+<script>
+    // Re-initialize Lucide icons when tabs change
+    document.addEventListener('alpine:initialized', () => {
+        setTimeout(() => lucide.createIcons(), 100);
+    });
+    
+    // Watch for tab changes and refresh icons
+    document.addEventListener('alpine:init', () => {
+        Alpine.effect(() => {
+            setTimeout(() => lucide.createIcons(), 50);
+        });
+    });
+</script>
+{% endblock %}

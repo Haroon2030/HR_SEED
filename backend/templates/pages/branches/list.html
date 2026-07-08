@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-4"
+     data-hr-tab-lazy
+     x-data="{
+        activeTab: '{{ active_tab|default:'branches' }}',
+        orgTabs: ['branches','cost_centers','departments','administrations','nationalities','professions','sponsorships','insurances','insurance_classes','buildings','banks'],
+        orgTabLabels: {
+            branches: 'الفروع',
+            cost_centers: 'مراكز التكلفة',
+            departments: 'الأقسام',
+            administrations: 'الإدارات',
+            nationalities: 'الجنسيات',
+            professions: 'المهن',
+            sponsorships: 'الكفالات',
+            insurances: 'التأمينات',
+            insurance_classes: 'فئات التأمين',
+            buildings: 'السكن',
+            banks: 'البنوك',
+        },
+        orgTabUrl: '{{ org_tab_url }}',
+        loadOrgTab(tab) {
+            if (!this.orgTabs.includes(tab)) return;
+            const label = 'جاري تحميل ' + (this.orgTabLabels[tab] || 'البيانات');
+            const url = this.orgTabUrl + '?tab=' + encodeURIComponent(tab);
+            if (window.hrGlassLoader) {
+                window.hrGlassLoader.fetchHtml(url, 'org-tab-content', label);
+                return;
+            }
+            const store = window.Alpine && Alpine.store('glassLoader');
+            if (store) {
+                store.fetchHtml(url, 'org-tab-content', label);
+            }
+        },
+        switchOrgTab(tab) {
+            if (!this.orgTabs.includes(tab)) return;
+            this.activeTab = tab;
+            const u = new URL(window.location.href);
+            u.searchParams.set('tab', tab);
+            u.hash = tab;
+            history.replaceState(null, '', u.pathname + u.search + u.hash);
+            this.loadOrgTab(tab);
+            if (window.lucide) lucide.createIcons();
+        }
+     }"
+     x-init="
+        const h = (window.location.hash || '').replace('#', '');
+        const q = new URL(window.location.href).searchParams.get('tab');
+        if (h && orgTabs.includes(h)) {
+            activeTab = h;
+        } else if (q && orgTabs.includes(q)) {
+            activeTab = q;
+        }
+        loadOrgTab(activeTab);
+     ">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">إدارة الهيكل التنظيمي</h1>
+        </div>
+    </div>
+
+    <div class="hr-tabs hr-glass-panel hr-page-tabs rounded-xl overflow-hidden">
+        {% include "components/org_structure_tabs.html" %}
+
+        <div id="org-tab-panel" class="relative min-h-[12rem]">
+            <div id="org-tab-content"
+                 class="transition-opacity duration-200"
+                 :class="$store.glassLoader.visible ? 'opacity-50 pointer-events-none select-none' : 'opacity-100'"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}

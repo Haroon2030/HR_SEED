@@ -1,0 +1,1529 @@
+﻿{% load custom_tags l10n %}
+<div id="employee-tab-panel">
+    {% include "components/page_tabs_start.html" with aria_label="أقسام ملف الموظف" wrapper_class="hr-glass-panel hr-page-tabs hr-page-tabs--overflow-visible rounded-xl" %}
+            {% include "pages/employees/_tab_nav.html" %}
+    {% include "components/page_tabs_body_start.html" with body_class="p-6" %}
+
+            <!-- Main -->
+            {% if tab_visible.main and default_employee_tab == 'main' %}
+            {% include "pages/employees/_tab_main.html" %}
+            {% endif %}
+
+            {% if tab_visible.fingerprint and default_employee_tab == 'fingerprint' %}{% include "pages/employees/_tab_fingerprint.html" %}{% endif %}
+
+            <!-- Salary -->
+            {% if tab_visible.salary and default_employee_tab == 'salary' %}            <div x-show="activeTab==='salary'" class="space-y-4" style="display:none">
+
+                {# ── مكوّنات الراتب ── #}
+                <div class="space-y-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4 text-slate-600"></i>
+                        <h3 class="text-sm font-bold text-slate-800 m-0">مكوّنات الراتب الشهري</h3>
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold {% if employee.sponsorship_id %}bg-sky-100 text-sky-800{% else %}bg-amber-100 text-amber-900{% endif %}">
+                            <i data-lucide="wallet" class="w-3 h-3"></i>
+                            {{ employee.payroll_salary_mode_label }}
+                        </span>
+                    </div>
+                    <div class="hr-salary-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">الراتب الأساسي</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.basic_salary|format_amount }}</div>
+                        </div>
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">بدل السكن</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.housing_allowance|format_amount }}</div>
+                        </div>
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">بدل النقل</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.transport_allowance|format_amount }}</div>
+                        </div>
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">بدل إضافي</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.other_allowance|format_amount }}</div>
+                        </div>
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">
+                                بدل التغذية
+                                <span class="block text-[10px] font-normal text-slate-400 mt-0.5">لا يُحتسب ضمن مكافأة نهاية الخدمة</span>
+                            </div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.meal_allowance|format_amount }}</div>
+                        </div>
+                        <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">نسبة خصم التأمينات (%)</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.insurance_deduction_rate|format_amount }}</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div class="hr-salary-total-card rounded-lg border border-primary-200 bg-primary-50/60 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-primary-800">إجمالي الراتب (ر.س)</div>
+                            <div class="text-base font-black text-primary-800 font-mono" dir="ltr">{{ employee.total_salary|format_amount }}</div>
+                        </div>
+                        {% if employee.sponsorship_id %}
+                        <div class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 space-y-1">
+                            <div class="text-xs font-bold text-slate-600">أساس مكافأة نهاية الخدمة (بدون تغذية)</div>
+                            <div class="text-sm font-bold text-slate-800 font-mono" dir="ltr">{{ employee.salary_for_end_of_service|format_amount }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# ── بيانات الصرف ── #}
+                {% if employee.sponsorship_id %}
+                {% include "components/bank_transfer_panel.html" with employee=employee editable=False %}
+                {% else %}
+                <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                    <div class="flex items-center gap-2 mb-1">
+                        <i data-lucide="banknote" class="w-4 h-4 text-amber-800"></i>
+                        <h3 class="text-sm font-bold text-amber-900">صرف نقدي</h3>
+                    </div>
+                    <p class="text-xs text-amber-900 m-0 leading-relaxed">الموظف بدون كفالة — يُصرف الراتب كاملاً نقداً عبر مسير النقدي.</p>
+                </div>
+                {% endif %}
+
+                {# === أرشيف تعديلات الراتب === #}
+                <div class="pt-2 border-t border-slate-200">
+                    {% include "components/salary_adjust_archive.html" with records=salary_adjusts show_type_col=True show_count=True section_id="view" %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Leaves -->
+            {% if tab_visible.leaves and default_employee_tab == 'leaves' %}            <div x-show="activeTab==='leaves'" class="space-y-4" style="display:none">
+                {% if not employee.sponsorship_id %}
+                <div class="p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs flex items-start gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5"></i>
+                    <span>يبدأ احتساب الإجازات تلقائياً فور تعبئة <b>الكفالة</b> في تبويب «بيانات الموظف».</span>
+                </div>
+                {% endif %}
+
+                {% if can_edit_leave_settings %}
+                <form method="post" action="{% url 'web:save_employee_leave_settings' employee.id %}"
+                      class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-lg border border-slate-200 bg-slate-50/80">
+                    {% csrf_token %}
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">الرصيد الافتتاحي (أيام)</label>
+                        <input type="number" step="0.01" min="0" name="opening_leave_days"
+                               value="{{ employee.opening_leave_days|input_decimal }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                               placeholder="0">
+                        <p class="text-[10px] text-slate-500 mt-1">المتبقي قبل تاريخ الاحتساب (إن وُجد).</p>
+                    </div>
+                    <div class="hr-form-field">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">تاريخ الاحتساب</label>
+                        <input type="date" name="leave_accrual_start_date"
+                               value="{{ employee.leave_accrual_start_date|date:'Y-m-d' }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none">
+                        <p class="text-[10px] text-slate-500 mt-1">يُحسب التراكم من هذا التاريخ + الرصيد الافتتاحي.</p>
+                    </div>
+                    {% if not employee.leave_accrual_start_date %}
+                    <div class="hr-form-field sm:col-span-2">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">الإجازات المستخدمة (يدوي)</label>
+                        <div class="flex items-center gap-2 max-w-xs">
+                            <input type="number" step="0.5" min="0" name="available_leave_balance"
+                                   value="{{ employee.available_leave_balance|input_decimal }}"
+                                   class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none">
+                            <span class="text-xs text-slate-600 shrink-0">يوم</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">يُستخدم عند عدم تعبئة تاريخ الاحتساب.</p>
+                    </div>
+                    {% endif %}
+                    <div class="sm:col-span-2 flex justify-end">
+                        {% include "components/hr_btn.html" with type="submit" label="حفظ إعدادات الرصيد" variant="primary" icon="save" %}
+                    </div>
+                </form>
+                {% else %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-lg border border-slate-200 bg-slate-50/60">
+                    <div>
+                        <div class="text-xs font-bold text-slate-600 mb-1">الرصيد الافتتاحي (أيام)</div>
+                        <div class="text-sm font-bold text-slate-800">{{ employee.opening_leave_days|floatformat:2|default:"0.00" }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-600 mb-1">تاريخ الاحتساب</div>
+                        <div class="text-sm font-bold text-slate-800" dir="ltr">{{ employee.leave_accrual_start_date|date:"Y-m-d"|default:"—" }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if leave_breakdown.uses_migration %}
+                <div class="p-3 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-xs space-y-1">
+                    <div class="font-bold flex items-center gap-2">
+                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                        احتساب من تاريخ الاحتساب والرصيد الافتتاحي
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                        <div>
+                            <span class="text-sky-600 block">افتتاحي</span>
+                            <span class="font-bold">{{ leave_breakdown.opening_days|floatformat:2 }} يوم</span>
+                        </div>
+                        <div>
+                            <span class="text-sky-600 block">تراكم من {{ leave_breakdown.leave_accrual_start|date:"Y-m-d" }}</span>
+                            <span class="font-bold">{{ leave_breakdown.period_accrual_days|floatformat:2 }} يوم</span>
+                        </div>
+                        <div>
+                            <span class="text-sky-600 block">مستخدم</span>
+                            <span class="font-bold">{{ leave_breakdown.used_days|floatformat:2 }} يوم</span>
+                        </div>
+                        <div>
+                            <span class="text-sky-600 block">متبقي</span>
+                            <span class="font-bold text-primary-800">{{ leave_breakdown.remaining_days|floatformat:2 }} يوم</span>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-sky-700 mt-1">
+                        مكافأة نهاية الخدمة عند التصفية تُحسب من تاريخ المباشرة:
+                        <strong>{{ leave_breakdown.hire_date|date:"Y-m-d"|default:"—" }}</strong>
+                    </p>
+                </div>
+                {% endif %}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-emerald-700 mb-1">الرصيد المستحق</div>
+                        <div class="text-lg font-bold text-emerald-800">{{ employee.accrued_leave_days|floatformat:2 }} يوم</div>
+                        <div class="text-[10px] text-emerald-600 mt-1">
+                            {% if employee.leave_accrual_start_date %}
+                            افتتاحي + تراكم من {{ employee.leave_accrual_start_date|date:"Y-m-d" }}
+                            {% elif employee.hire_date %}
+                            من تاريخ المباشرة {{ employee.hire_date|date:"Y-m-d" }}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-red-700 mb-1">الإجازات المستخدمة</div>
+                        <div class="text-lg font-bold text-red-800">{{ employee.used_leave_days|default:"0.00" }} يوم</div>
+                    </div>
+                    <div class="bg-primary-50 border border-primary-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-primary-700 mb-1">الرصيد المتبقي</div>
+                        <div class="text-lg font-bold text-primary-800">{{ employee.remaining_leave_days|floatformat:2 }} يوم</div>
+                    </div>
+                </div>
+                <div class="mb-1">
+                    <div class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <i data-lucide="archive" class="w-4 h-4 text-slate-500"></i> أرشيف الإجازات
+                    </div>
+                </div>
+
+                <!-- Timeline (سجل الإجازات) -->
+                <div x-data="{
+                    q: '',
+                    filter: 'all',
+                    leaveRowVisible(el) {
+                        const type = el.dataset.type || '';
+                        const search = (el.dataset.search || '').toLowerCase();
+                        const q = (this.q || '').trim().toLowerCase();
+                        const filter = this.filter || 'all';
+                        if (filter !== 'all' && type !== filter) return false;
+                        if (q && !search.includes(q)) return false;
+                        return true;
+                    }
+                }">
+                    <!-- Toolbar -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-2">
+                        <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <div class="relative flex-1">
+                                <i data-lucide="search" class="w-4 h-4 absolute top-1/2 -translate-y-1/2 right-2.5 text-slate-400"></i>
+                                <input type="text" x-model="q" placeholder="بحث في الإجازات..." class="w-full pr-8 pl-3 py-1.5 border border-slate-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary-500">
+                            </div>
+                            <select x-model="filter" class="hr-archive-filter-select px-2 py-1.5 border border-slate-300 rounded text-sm bg-white min-w-[10rem] shrink-0">
+                                <option value="all">كل الأنواع</option>
+                                <option value="annual">سنوية</option>
+                                <option value="sick">مرضية</option>
+                                <option value="emergency">طارئة</option>
+                                <option value="unpaid">بدون راتب</option>
+                            </select>
+                        </div>
+                        <div class="text-xs text-slate-500 flex items-center gap-2">
+                            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                            <span>إجمالي الإجازات: <span class="font-bold text-slate-800">{{ leave_timeline|length }}</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Table -->
+                    <div class="border border-slate-200 rounded-lg overflow-hidden">
+                        <div class="overflow-x-auto overflow-y-auto" style="max-height: 60vh;">
+                            <table class="w-full text-sm hr-archive-table">
+                                <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10">
+                                    <tr class="border-b border-slate-200">
+                                        <th class="px-3 py-2 text-right font-semibold w-32">التاريخ والوقت</th>
+                                        <th class="px-3 py-2 text-right font-semibold w-28">النوع</th>
+                                        <th class="px-3 py-2 text-right font-semibold w-32">من / إلى</th>
+                                        <th class="px-3 py-2 text-right font-semibold w-20">الأيام</th>
+                                        <th class="px-3 py-2 text-center font-semibold w-16">الملاحظات</th>
+                                        <th class="px-3 py-2 text-right font-semibold w-32">المنفّذ</th>
+                                        <th class="px-3 py-2 text-right font-semibold w-24">الحالة</th>
+                                        {% if can_edit_leave or can_delete_leave %}
+                                        <th class="px-3 py-2 text-center font-semibold w-24">إجراءات</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    {% for row in leave_timeline %}
+                                    <tr class="hover:bg-slate-50 transition-colors"
+                                        data-type="{{ row.leave_type }}"
+                                        data-search="{{ row.search_text|escape }}"
+                                        x-show="leaveRowVisible($el)">
+                                        <td class="px-3 py-2 align-top">
+                                            <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                                <span>{{ row.sort_at|date:"Y-m-d" }}</span>
+                                                <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                                <span class="text-slate-500">{{ row.sort_at|date:"H:i" }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            {% if row.leave_type == 'annual' %}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-sky-100 text-sky-700">
+                                                <i data-lucide="sun" class="w-3 h-3"></i> {{ row.leave_type_display }}
+                                            </span>
+                                            {% elif row.leave_type == 'sick' %}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-700">
+                                                <i data-lucide="heart-pulse" class="w-3 h-3"></i> {{ row.leave_type_display }}
+                                            </span>
+                                            {% elif row.leave_type == 'emergency' %}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-orange-100 text-orange-700">
+                                                <i data-lucide="zap" class="w-3 h-3"></i> {{ row.leave_type_display }}
+                                            </span>
+                                            {% elif row.leave_type == 'unpaid' %}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-slate-200 text-slate-700">
+                                                <i data-lucide="calendar-off" class="w-3 h-3"></i> {{ row.leave_type_display }}
+                                            </span>
+                                            {% else %}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-blue-100 text-blue-700">
+                                                <i data-lucide="calendar" class="w-3 h-3"></i> {{ row.leave_type_display }}
+                                            </span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-xs text-slate-700 whitespace-nowrap">
+                                            {% if row.date_from %}{{ row.date_from|date:"Y-m-d" }}{% else %}—{% endif %}
+                                            <span class="text-slate-300 mx-1">→</span>
+                                            {% if row.date_to %}{{ row.date_to|date:"Y-m-d" }}{% else %}—{% endif %}
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-xs font-bold text-slate-800">{{ row.days }}</td>
+                                        <td class="px-3 py-2 align-top text-center">
+                                            {% if row.notes %}
+                                            <template id="leave-note-content-{{ forloop.counter }}">{{ row.notes }}</template>
+                                            <button type="button"
+                                                    class="hr-act hr-act--view mx-auto"
+                                                    title="عرض الملاحظات"
+                                                    aria-label="عرض ملاحظات الإجازة"
+                                                    data-hr-text-detail-open
+                                                    data-hr-text-detail-icon="calendar"
+                                                    data-hr-text-detail-title="ملاحظات الإجازة — {{ row.leave_type_display }}"
+                                                    data-hr-text-detail-label="الملاحظات"
+                                                    data-hr-text-detail-content-id="leave-note-content-{{ forloop.counter }}"
+                                                    data-hr-text-detail-meta='[{"label":"من","value":"{% if row.date_from %}{{ row.date_from|date:"Y-m-d" }}{% else %}—{% endif %}","valueClass":"mono"},{"label":"إلى","value":"{% if row.date_to %}{{ row.date_to|date:"Y-m-d" }}{% else %}—{% endif %}","valueClass":"mono"},{"label":"الأيام","value":"{{ row.days }}"},{"label":"الحالة","value":"{{ row.status_label|escapejs }}"}]'
+                                                    {% if row.document_url %}data-hr-text-detail-attachment="{{ row.document_url }}"{% endif %}>
+                                                <i data-lucide="eye" class="hr-act__icon"></i>
+                                            </button>
+                                            {% else %}
+                                            <span class="text-slate-300 text-xs">—</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-xs text-slate-600">{{ row.executor_name }}</td>
+                                        <td class="px-3 py-2 align-top">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ row.status_class }}">{{ row.status_label }}</span>
+                                        </td>
+                                        {% if can_edit_leave or can_delete_leave %}
+                                        <td class="px-3 py-2 align-top text-center">
+                                            {% if row.leave_id %}
+                                            <div class="flex items-center justify-center gap-1">
+                                                {% if row.applied_to_payroll_id %}
+                                                <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">مُرحّل</span>
+                                                {% else %}
+                                                {% if can_edit_leave %}
+                                                <button type="button"
+                                                        class="hr-act hr-act--edit"
+                                                        title="تعديل الإجازة"
+                                                        aria-label="تعديل الإجازة"
+                                                        @click="$dispatch('open-leave-edit', {
+                                                            id: {{ row.leave_id }},
+                                                            leave_type: '{{ row.leave_type }}',
+                                                            date_from: '{% if row.date_from %}{{ row.date_from|date:'Y-m-d' }}{% endif %}',
+                                                            date_to: '{% if row.date_to %}{{ row.date_to|date:'Y-m-d' }}{% endif %}',
+                                                            notes: '{{ row.notes|escapejs }}'
+                                                        })">
+                                                    <i data-lucide="pencil" class="hr-act__icon"></i>
+                                                </button>
+                                                {% endif %}
+                                                {% if can_delete_leave %}
+                                                {% url 'web:delete_employee_leave' employee.id row.leave_id as leave_del_url %}
+                                                {% include "components/table_act_delete.html" with url=leave_del_url confirm="هل أنت متأكد من حذف سجل الإجازة؟" title="حذف الإجازة" %}
+                                                {% endif %}
+                                                {% endif %}
+                                            </div>
+                                            {% else %}
+                                            <span class="text-slate-300 text-xs">—</span>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="{% if can_edit_leave or can_delete_leave %}8{% else %}7{% endif %}" class="px-3 py-12 text-center">
+                                            <div class="inline-flex flex-col items-center gap-2 text-slate-400">
+                                                <i data-lucide="calendar-x" class="w-10 h-10"></i>
+                                                <span class="text-sm">لا بيانات</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 text-center mt-2">
+                        <i data-lucide="info" class="w-3 h-3 inline-block"></i>
+                        يظهر هنا طلب الإجازة فور تقديمه، ويُحدَّث إلى «مُسجَّلة» بعد اكتمال الموافقات
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Schedule -->
+            {% if tab_visible.schedule and default_employee_tab == 'schedule' %}            {{ schedule_boxes_json|json_script:"schedule-boxes-data" }}
+            <div x-show="activeTab==='schedule'" class="space-y-4" style="display:none"
+                 x-data="Object.assign(scheduleBoxes(), { editable: false })"
+                 x-effect="$nextTick(() => { if (window.lucide) lucide.createIcons(); })">
+
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar-days" class="w-4 h-4 text-primary-600"></i>
+                        <span class="text-sm font-bold text-slate-800">جدول العمل الشهري</span>
+                        <span x-show="boxes.length > 0"
+                              class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold"
+                              x-text="scheduleRecordsLabel(boxes.length)"></span>
+                    </div>
+                    {% if employee.status != 'terminated' %}
+                        {% if request.user.is_superuser or request.user.profile.role.role_type == 'admin' or request.user.profile.role.role_type == 'hr_manager' %}
+                        <button type="button" @click="$dispatch('open-schedule-modal', { add: true })"
+                                class="hr-btn hr-btn--dark hr-btn--sm">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            إضافة شهر
+                        </button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                <template x-if="boxes.length === 0">
+                    <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
+                        <i data-lucide="calendar-plus" class="w-10 h-10 text-slate-300 mx-auto mb-2"></i>
+                        <p class="text-sm text-slate-500 mb-3">لا يوجد جدول دوام محفوظ</p>
+                        {% if employee.status != 'terminated' %}
+                            {% if request.user.is_superuser or request.user.profile.role.role_type == 'admin' or request.user.profile.role.role_type == 'hr_manager' %}
+                            <button type="button" @click="$dispatch('open-schedule-modal', { add: true })"
+                                    class="hr-btn hr-btn--dark hr-btn--sm">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                إنشاء جدول دوام
+                            </button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </template>
+
+                <form x-ref="scheduleSaveForm" method="post" action="{% url 'web:set_work_schedule' employee.id %}" class="hidden">
+                    {% csrf_token %}
+                    <input type="hidden" name="confirm_clear" value="">
+                    <input type="hidden" name="schedule_action" value="">
+                    <input type="hidden" name="deleted_month_label" value="">
+                    <input type="hidden" name="boxes_json" :value="JSON.stringify(boxes)">
+                </form>
+
+                <template x-if="boxes.length > 0">
+                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-sm hr-schedule-months-table">
+                            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-2.5 text-right font-bold">الشهر</th>
+                                    <th class="px-4 py-2.5 text-right font-bold">الوردية</th>
+                                    <th class="px-4 py-2.5 text-center font-bold">أيام الدوام</th>
+                                    <th class="px-4 py-2.5 text-center font-bold w-36">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="box in sortedBoxes" :key="box.id">
+                                    <tr class="hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                        @click="$dispatch('open-schedule-modal', { boxId: box.id })">
+                                        <td class="px-4 py-3 font-bold text-slate-800">
+                                            <span class="inline-flex items-center gap-2">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-primary-600 shrink-0"></i>
+                                                <span x-text="boxMonthLabel(box)"></span>
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-slate-600 text-xs" x-text="shiftShortLabel(box)"></td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span class="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800"
+                                                  x-text="workDaysCount(box)"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-center" @click.stop>
+                                            <div class="inline-flex items-center justify-center gap-1">
+                                                <button type="button"
+                                                        @click="$dispatch('open-schedule-modal', { boxId: box.id })"
+                                                        class="hr-btn hr-btn--soft-primary hr-btn--xs">
+                                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                    فتح
+                                                </button>
+                                                {% if employee.status != 'terminated' %}
+                                                    {% if request.user.is_superuser or request.user.profile.role.role_type == 'admin' or request.user.profile.role.role_type == 'hr_manager' %}
+                                                    <button type="button"
+                                                            @click="deleteBoxPersist(box.id)"
+                                                            class="hr-btn hr-btn--soft-rose hr-btn--xs"
+                                                            title="حذف هذا الشهر">
+                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                        مسح
+                                                    </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-[11px] text-slate-400 flex items-center gap-1">
+                        <i data-lucide="info" class="w-3 h-3"></i>
+                        انقر على أي شهر لفتح جدول الورديات في نافذة منبثقة
+                    </p>
+                </template>
+            </div>
+            {% endif %}
+
+            <!-- Warnings -->
+            {% if tab_visible.warnings and default_employee_tab == 'warnings' %}            <div x-show="activeTab==='warnings'" style="display:none">
+            <div x-data="archivePager('warnings')" x-init="init()" class="space-y-3">
+
+                <!-- Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                    <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0 w-full sm:w-auto">
+                        <div class="relative flex-1 min-w-[12rem]">
+                            <i data-lucide="search" class="w-4 h-4 absolute top-1/2 -translate-y-1/2 right-2.5 text-slate-400"></i>
+                            <input type="text" x-model="q" @input="onSearchInput()" placeholder="بحث في الإفادات..." class="w-full pr-8 pl-3 py-1.5 border border-slate-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary-500">
+                        </div>
+                        {% include "components/archive_type_filter.html" %}
+                    </div>
+                    <div class="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span>الإجمالي: <span class="font-bold text-slate-800">{{ statements_count }}</span></span>
+                        <template x-if="filter !== 'all' || (q && q.trim())">
+                            <span class="text-slate-300">|</span>
+                        </template>
+                        <span x-show="filter !== 'all' || (q && q.trim())" class="text-primary-700 font-semibold">
+                            معروض: <span class="font-bold" x-text="matchedCount"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Timeline Table -->
+                <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto overflow-y-auto" style="max-height: 60vh;">
+                        <table class="w-full text-sm hr-archive-table">
+                            <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10">
+                                <tr class="border-b border-slate-200">
+                                    <th class="px-3 py-2 text-right font-semibold w-32">التاريخ والوقت</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-32">النوع</th>
+                                    <th class="px-3 py-2 text-right font-semibold">العنوان / التفاصيل</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-24">المرفق</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-32">المنفّذ</th>
+                                    {% if can_edit_statement or can_delete_statement %}
+                                    <th class="px-3 py-2 text-center font-semibold w-24">إجراءات</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody id="hr-archive-tbody-warnings" class="divide-y divide-slate-100" x-ref="archiveBody">
+                                {% for st in employee.statements_log.all %}
+                                {% if st.statement_type == 'statement' or st.statement_type == 'warning' or st.statement_type == 'final_warning' or st.statement_type == 'penalty' or st.statement_type == 'acknowledgment' or st.statement_type == 'other' %}
+                                <tr class="archive-row hover:bg-slate-50 transition-colors" x-show="archiveRowVisible($el)"
+                                    data-type="{{ st.statement_type }}"
+                                    data-ts="{{ st.created_at|date:'c' }}"
+                                    data-text="{{ st.title|truncatechars:80|escapejs }} {{ st.content|truncatechars:120|escapejs }}">
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                            <span>{{ st.statement_date|date:"Y-m-d" }}</span>
+                                            <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                            <span class="text-slate-500">{{ st.created_at|date:"H:i" }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        {% if st.statement_type == 'warning' or st.statement_type == 'final_warning' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-red-100 text-red-700">
+                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% elif st.statement_type == 'penalty' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-700">
+                                            <i data-lucide="badge-minus" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% elif st.statement_type == 'acknowledgment' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-700">
+                                            <i data-lucide="file-signature" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-blue-100 text-blue-700">
+                                            <i data-lucide="file-text" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="hr-archive-cell-title text-slate-800 font-medium text-xs flex flex-wrap items-center gap-1.5">
+                                            <span>{{ st.title }}</span>
+                                            {% if st.serial_number %}
+                                            <span class="shrink-0 font-mono text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded">{{ st.serial_number }}</span>
+                                            {% endif %}
+                                            {% if st.content and st.content != st.title %}
+                                            {% include "components/archive_row_detail_btn.html" with title=st.title content=st.content modal_uid=st.id %}
+                                            {% endif %}
+                                            {% if st.email_sent_at %}
+                                            <span class="shrink-0 inline-flex items-center gap-0.5 text-emerald-600" title="أُرسل بالبريد في {{ st.email_sent_at|date:'Y-m-d H:i' }}">
+                                                <i data-lucide="mail-check" class="w-3.5 h-3.5"></i>
+                                            </span>
+                                            {% elif st.email_error %}
+                                            <span class="shrink-0 inline-flex items-center gap-0.5 text-red-600" title="فشل الإرسال: {{ st.email_error }}">
+                                                <i data-lucide="mail-x" class="w-3.5 h-3.5"></i>
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-center">
+                                        {% if st.document %}
+                                        {% include "components/media_preview_btn.html" with url=st.document.url title=st.title label="عرض" as_icon_only=True %}
+                                        {% else %}
+                                        —
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-slate-600 text-xs">
+                                        <i data-lucide="user" class="w-3 h-3 inline-block"></i>
+                                        {{ st.created_by.get_full_name|default:st.created_by.username|default:"—" }}
+                                    </td>
+                                    {% if can_edit_statement or can_delete_statement %}
+                                    <td class="px-3 py-2 align-top text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            {% if st.applied_to_payroll_id %}
+                                            <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">مُرحّل</span>
+                                            {% else %}
+                                            {% if can_edit_statement %}
+                                            <button type="button"
+                                                    class="hr-act hr-act--edit"
+                                                    title="تعديل الإفادة"
+                                                    aria-label="تعديل الإفادة"
+                                                    @click="$dispatch('open-statement-edit', {
+                                                        id: {{ st.id }},
+                                                        statement_type: '{{ st.statement_type }}',
+                                                        title: '{{ st.title|escapejs }}',
+                                                        statement_date: '{{ st.statement_date|date:'Y-m-d' }}',
+                                                        content: '{{ st.content|escapejs }}',
+                                                        deduction_amount: '{{ st.deduction_amount|default:'0' }}'
+                                                    })">
+                                                <i data-lucide="pencil" class="hr-act__icon"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if can_delete_statement %}
+                                            {% url 'web:delete_employee_statement' st.id as stmt_del_url %}
+                                            {% include "components/table_act_delete.html" with url=stmt_del_url confirm="هل أنت متأكد من حذف هذه الإفادة؟" title="حذف الإفادة" %}
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endif %}
+                                {% empty %}
+                                <tr>
+                                    <td colspan="{% if can_edit_statement or can_delete_statement %}6{% else %}5{% endif %}" class="px-3 py-12 text-center">
+                                        <div class="inline-flex flex-col items-center gap-2 text-slate-400">
+                                            <i data-lucide="file-x" class="w-10 h-10"></i>
+                                            <span class="text-sm">لا بيانات</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="archive-empty" x-show="archiveShowEmpty()" x-cloak>
+                                    <td colspan="{% if can_edit_statement or can_delete_statement %}6{% else %}5{% endif %}" class="px-3 py-10 text-center text-sm text-slate-500">لا نتائج مطابقة للبحث أو نوع الإفادة</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div x-show="totalPages > 1" class="flex items-center justify-center gap-1 pt-1">
+                    <button type="button" @click="page = Math.max(1, page-1); refresh()" :disabled="page === 1"
+                            class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="chevron-right" class="hr-btn__icon"></i>
+                        السابق
+                    </button>
+                    <template x-for="p in totalPages" :key="p">
+                        <button type="button" @click="page = p; refresh()"
+                                :class="p === page ? 'hr-btn hr-btn--primary hr-btn--sm hr-pagination__num is-active' : 'hr-btn hr-btn--outline hr-btn--sm hr-pagination__num'"
+                                x-text="p"></button>
+                    </template>
+                    <button type="button" @click="page = Math.min(totalPages, page+1); refresh()" :disabled="page === totalPages"
+                            class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn disabled:opacity-40 disabled:cursor-not-allowed">
+                        التالي
+                        <i data-lucide="chevron-left" class="hr-btn__icon"></i>
+                    </button>
+                    <span class="text-[11px] text-slate-500 mx-2">
+                        صفحة <span class="font-bold text-slate-700" x-text="page"></span> من <span class="font-bold text-slate-700" x-text="totalPages"></span>
+                    </span>
+                </div>
+
+                <p class="text-[11px] text-slate-400 text-center">
+                    <i data-lucide="info" class="w-3 h-3 inline-block"></i>
+                    يتم تسجيل كل إفادة أو إنذار يصدر بحق الموظف تلقائياً في هذا السجل الزمني
+                </p>
+            </div>
+            </div>
+            {% endif %}
+
+            <!-- Docs -->
+            {% if tab_visible.docs and default_employee_tab == 'docs' %}
+            <div x-show="activeTab==='docs'" class="hr-employee-docs" style="display:none">
+                <div class="hr-employee-docs__header">
+                    <div class="hr-employee-docs__header-text">
+                        <h3 class="hr-employee-docs__title">مستندات الموظف</h3>
+                        <p class="hr-employee-docs__subtitle">الملفات الرسمية المرتبطة بملف الموظف — اضغط معاينة للعرض أو ارفع من التعديل</p>
+                    </div>
+                    {% if employee %}
+                    <a href="{% url 'web:edit_employee' employee.id %}?tab=docs" class="hr-employee-docs__edit-link">
+                        <i data-lucide="folder-up" class="w-4 h-4" aria-hidden="true"></i>
+                        إدارة المستندات
+                    </a>
+                    {% endif %}
+                </div>
+
+                <div class="hr-employee-docs__grid">
+                    {% include "components/document_status_row.html" with label="مستند المباشرة" file=employee.commencement_document employee=employee icon="file-text" theme="sky" %}
+                    {% include "components/document_status_row.html" with label="صورة الهوية" file=employee.id_document employee=employee icon="id-card" theme="emerald" %}
+                    {% include "components/document_status_row.html" with label="صورة جواز السفر" file=employee.passport_document employee=employee icon="plane" theme="indigo" %}
+                    {% include "components/document_status_row.html" with label="العقد" file=employee.contract_document employee=employee icon="file-signature" theme="amber" %}
+                    {% include "components/document_status_row.html" with label="مستندات أخرى" file=employee.other_documents employee=employee icon="files" theme="violet" %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Custodies -->
+            {% if tab_visible.custodies and default_employee_tab == 'custodies' %}            <div x-show="activeTab==='custodies'" class="space-y-3" style="display:none">
+                {% if custodies %}
+                <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600 text-xs">
+                            <tr>
+                                <th class="px-3 py-2 text-right font-bold">الرقم</th>
+                                <th class="px-3 py-2 text-right font-bold">العهدة</th>
+                                <th class="px-3 py-2 text-right font-bold">الكمية</th>
+                                <th class="px-3 py-2 text-right font-bold">القيمة</th>
+                                <th class="px-3 py-2 text-right font-bold">تاريخ الاستلام</th>
+                                <th class="px-3 py-2 text-right font-bold">الحالة</th>
+                                <th class="px-3 py-2 text-right font-bold">تاريخ الإعادة</th>
+                                <th class="px-3 py-2 text-right font-bold">المستند</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for c in custodies %}
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs text-slate-600">{{ c.serial_number|default:"—" }}</td>
+                                <td class="px-3 py-2"><div class="font-bold text-slate-800">{{ c.item_name }}</div>{% if c.item_details %}<div class="text-xs text-slate-500">{{ c.item_details|truncatechars:60 }}</div>{% endif %}</td>
+                                <td class="px-3 py-2">{{ c.quantity }}</td>
+                                <td class="px-3 py-2">{{ c.estimated_value|default:"—" }}</td>
+                                <td class="px-3 py-2">{{ c.received_at|date:"Y/m/d" }}</td>
+                                <td class="px-3 py-2">
+                                    {% if c.status == 'active' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">بالحوزة</span>
+                                    {% else %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">مُعادة</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-xs">{{ c.returned_at|date:"Y/m/d"|default:"—" }}</td>
+                                <td class="px-3 py-2 text-xs">
+                                    {% if c.document %}{% include "components/media_preview_btn.html" with url=c.document.url title="مستند الاستلام" label="استلام" btn_class="inline-flex items-center gap-0.5 text-primary-600 font-semibold" %}{% endif %}
+                                    {% if c.return_document %}{% if c.document %} · {% endif %}{% include "components/media_preview_btn.html" with url=c.return_document.url title="مستند الإعادة" label="إعادة" btn_class="inline-flex items-center gap-0.5 text-primary-600 font-semibold" %}{% endif %}
+                                    {% if not c.document and not c.return_document %}—{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-slate-500 py-12 border border-dashed border-slate-200 rounded-lg">
+                    <i data-lucide="package" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                    لا بيانات
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Contract -->
+            {% if tab_visible.contract and default_employee_tab == 'contract' %}            <div x-show="activeTab==='contract'" class="space-y-4" style="display:none">
+                {% if contract_is_saudi and contract_fourth_year_start %}
+                <div class="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
+                    <i data-lucide="info" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                    <div>
+                        <p class="font-bold mb-1">قواعد عقد السعودي</p>
+                        <p>من بداية السنة الرابعة ({{ contract_fourth_year_start|date:"Y/m/d" }}) يتحول العقد تلقائياً إلى غير محدد المدة.</p>
+                        {% if employee.contract_type == 'unlimited' %}
+                        <p class="mt-1 text-emerald-800 font-bold">العقد الحالي: غير محدد المدة</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="hr-glass-field-table-wrap">
+                <div class="hr-field-grid hr-glass-field-table">
+                    <div><div class="text-xs font-bold text-slate-500 mb-1">نوع العقد</div><div class="text-sm text-slate-800">{% if employee.contract_type %}{{ employee.get_contract_type_display }}{% else %}—{% endif %}</div></div>
+                    {% if employee.contract_type == 'fixed' %}
+                        {% if contract_is_saudi %}
+                        <div><div class="text-xs font-bold text-slate-500 mb-1">مدة العقد (أشهر)</div><div class="text-sm text-slate-800">{{ employee.contract_duration_months|default:"—" }}</div></div>
+                        {% else %}
+                        <div><div class="text-xs font-bold text-slate-500 mb-1">مدة العقد</div><div class="text-sm text-slate-800">{{ employee.contract_duration_text|default:"—" }}</div></div>
+                        {% endif %}
+                    {% endif %}
+                    <div><div class="text-xs font-bold text-slate-500 mb-1">تاريخ بداية العقد</div><div class="text-sm text-slate-800">{{ employee.contract_start_date|default:"—" }}</div></div>
+                    {% if employee.contract_type != 'unlimited' %}
+                    <div><div class="text-xs font-bold text-slate-500 mb-1">تاريخ نهاية العقد</div><div class="text-sm text-slate-800">{{ employee.contract_expiry_date|default:"—" }}</div></div>
+                    {% endif %}
+                    <div><div class="text-xs font-bold text-slate-500 mb-1">تاريخ المباشرة</div><div class="text-sm text-slate-800">{{ employee.hire_date|default:"—" }}</div></div>
+                    <div><div class="text-xs font-bold text-slate-500 mb-1">الجنسية</div><div class="text-sm text-slate-800">{{ employee.nationality.name|default:"—" }}</div></div>
+                    <div class="hr-field-item--full">
+                        <div class="text-xs font-bold text-slate-500 mb-1">مستند العقد</div>
+                        <div class="text-sm text-slate-800">
+                            {% if employee.contract_document %}
+                            {% include "components/table_act_file.html" with url=employee.contract_document.url title="عرض العقد" %}
+                            {% else %}—{% endif %}
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Loans -->
+            {% if tab_visible.loans and default_employee_tab == 'loans' %}            <div x-show="activeTab==='loans'" class="space-y-3" style="display:none">
+                {% if loans %}
+                <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600 text-xs">
+                            <tr>
+                                <th class="px-3 py-2 text-right font-bold">الرقم</th>
+                                <th class="px-3 py-2 text-right font-bold">المبلغ</th>
+                                <th class="px-3 py-2 text-right font-bold">الخصم الشهري</th>
+                                <th class="px-3 py-2 text-right font-bold">عدد الأقساط</th>
+                                <th class="px-3 py-2 text-center font-bold w-16">السبب</th>
+                                <th class="px-3 py-2 text-right font-bold">تاريخ الصرف</th>
+                                <th class="px-3 py-2 text-right font-bold">بداية الخصم</th>
+                                <th class="px-3 py-2 text-right font-bold">الحالة</th>
+                                <th class="px-3 py-2 text-right font-bold">المستند</th>
+                                {% if can_edit_loan or can_delete_loan %}
+                                <th class="px-3 py-2 text-center font-bold w-24">إجراءات</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for l in loans %}
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs text-slate-600">{{ l.serial_number|default:"—" }}</td>
+                                <td class="px-3 py-2 font-bold text-slate-800">{{ l.amount }}</td>
+                                <td class="px-3 py-2">{{ l.monthly_deduction }}</td>
+                                <td class="px-3 py-2">{{ l.installments }}</td>
+                                <td class="px-3 py-2 text-center">
+                                    {% if l.reason %}
+                                    <template id="loan-reason-content-{{ l.id }}">{{ l.reason }}</template>
+                                    <button type="button"
+                                            class="hr-act hr-act--view mx-auto"
+                                            title="عرض سبب السلفة"
+                                            aria-label="عرض سبب السلفة"
+                                            data-hr-text-detail-open
+                                            data-hr-text-detail-icon="landmark"
+                                            data-hr-text-detail-title="سبب السلفة — {{ l.serial_number|default:l.id }}"
+                                            data-hr-text-detail-label="السبب"
+                                            data-hr-text-detail-content-id="loan-reason-content-{{ l.id }}"
+                                            data-hr-text-detail-meta='[{"label":"المبلغ","value":"{% localize off %}{{ l.amount|js_number:0 }}{% endlocalize %} ر.س"},{"label":"الخصم الشهري","value":"{% localize off %}{{ l.monthly_deduction|js_number:0 }}{% endlocalize %} ر.س"},{"label":"الأقساط","value":"{{ l.installments }}"}]'>
+                                        <i data-lucide="eye" class="hr-act__icon"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-slate-300 text-xs">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2">{{ l.issued_at|date:"Y/m/d" }}</td>
+                                <td class="px-3 py-2 text-xs">{{ l.first_deduction_date|date:"Y/m/d"|default:"—" }}</td>
+                                <td class="px-3 py-2">
+                                    {% if l.status == 'active' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">قيد السداد</span>
+                                    {% elif l.status == 'paid' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">مُسدَّدة</span>
+                                    {% else %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">مُلغاة</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2">{% if l.document %}{% include "components/table_act_file.html" with url=l.document.url title="عرض الملف" %}{% else %}—{% endif %}</td>
+                                {% if can_edit_loan or can_delete_loan %}
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center justify-center gap-1">
+                                        {% if l.is_financially_locked %}
+                                        <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5" title="أقساط مُحصّلة">مُحصّل</span>
+                                        {% endif %}
+                                        {% if can_edit_loan %}
+                                        <button type="button"
+                                                class="hr-act hr-act--edit"
+                                                title="تعديل السلفة"
+                                                aria-label="تعديل السلفة"
+                                                @click="$dispatch('open-loan-edit', {
+                                                    id: {{ l.id }},
+                                                    amount: '{{ l.amount }}',
+                                                    monthly_deduction: '{{ l.monthly_deduction }}',
+                                                    installments: {{ l.installments }},
+                                                    reason: '{{ l.reason|escapejs }}',
+                                                    notes: '{{ l.notes|escapejs }}',
+                                                    issued_at: '{{ l.issued_at|date:'Y-m-d' }}',
+                                                    first_deduction_date: '{{ l.first_deduction_date|date:'Y-m-d'|default:'' }}',
+                                                    locked: {% if l.is_financially_locked %}true{% else %}false{% endif %}
+                                                })">
+                                            <i data-lucide="pencil" class="hr-act__icon"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if can_delete_loan and not l.is_financially_locked %}
+                                        {% url 'web:delete_employee_loan' employee.id l.id as loan_del_url %}
+                                        {% include "components/table_act_delete.html" with url=loan_del_url confirm="هل أنت متأكد من حذف هذه السلفة؟" title="حذف السلفة" %}
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-slate-500 py-12 border border-dashed border-slate-200 rounded-lg">
+                    <i data-lucide="coins" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                    لا بيانات
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Absences -->
+            {% if tab_visible.absences and default_employee_tab == 'absences' %}            <div x-show="activeTab==='absences'" class="space-y-3" style="display:none">
+                {% if absences %}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                        <div class="text-xs text-slate-600 mb-1">إجمالي أيام الغياب</div>
+                        <div class="text-lg font-bold text-orange-700">{{ absences_days_total|default:0 }} يوم</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                        <div class="text-xs text-slate-600 mb-1">إجمالي الخصم التراكمي</div>
+                        <div class="text-lg font-bold text-rose-700">
+                            {{ absences_deduction_total|format_amount }} ر.س
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <div class="text-xs text-slate-600 mb-1">إجمالي الراتب الحالي</div>
+                        <div class="text-lg font-bold text-slate-800">{% localize off %}{{ employee.total_salary|js_number:0 }}{% endlocalize %} ر.س</div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600 text-xs">
+                            <tr>
+                                <th class="px-3 py-2 text-right font-bold">الرقم</th>
+                                <th class="px-3 py-2 text-right font-bold">تاريخ الغياب</th>
+                                <th class="px-3 py-2 text-right font-bold">عدد الأيام</th>
+                                <th class="px-3 py-2 text-right font-bold">أيام الشهر</th>
+                                <th class="px-3 py-2 text-right font-bold">الراتب وقتها</th>
+                                <th class="px-3 py-2 text-right font-bold">سعر اليوم</th>
+                                <th class="px-3 py-2 text-right font-bold">الخصم</th>
+                                <th class="px-3 py-2 text-center font-bold w-16">السبب</th>
+                                <th class="px-3 py-2 text-right font-bold">المستند</th>
+                                {% if can_edit_absence or can_delete_absence %}
+                                <th class="px-3 py-2 text-center font-bold w-24">إجراءات</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for a in absences %}
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs text-slate-600">{{ a.serial_number|default:"—" }}</td>
+                                <td class="px-3 py-2 font-bold text-slate-800">{{ a.absence_date|date:"Y/m/d" }}</td>
+                                <td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">{{ a.days }}</span></td>
+                                <td class="px-3 py-2 text-xs text-slate-600">{{ a.month_days }}</td>
+                                <td class="px-3 py-2 text-xs">{{ a.total_salary_snapshot }}</td>
+                                <td class="px-3 py-2 font-bold text-orange-700">{{ a.daily_rate }}</td>
+                                <td class="px-3 py-2 font-bold text-rose-700">{{ a.deduction_amount }}</td>
+                                <td class="px-3 py-2 text-center align-middle">
+                                    {% if a.reason %}
+                                    <template id="absence-reason-content-{{ a.id }}">{{ a.reason }}</template>
+                                    <button type="button"
+                                            class="hr-act hr-act--view mx-auto"
+                                            title="عرض سبب الغياب"
+                                            aria-label="عرض سبب الغياب"
+                                            data-hr-text-detail-open
+                                            data-hr-text-detail-icon="user-minus"
+                                            data-hr-text-detail-title="سبب الغياب — {{ a.absence_date|date:'Y/m/d' }}"
+                                            data-hr-text-detail-label="السبب"
+                                            data-hr-text-detail-content-id="absence-reason-content-{{ a.id }}"
+                                            data-hr-text-detail-meta='[{"label":"الرقم","value":"{{ a.serial_number|default:"—"|escapejs }}","valueClass":"mono"},{"label":"عدد الأيام","value":"{{ a.days }}","valueClass":"text-orange-700"},{"label":"سعر اليوم","value":"{% localize off %}{{ a.daily_rate|js_number:0 }}{% endlocalize %}"},{"label":"الخصم","value":"{% localize off %}{{ a.deduction_amount|js_number:0 }}{% endlocalize %} ر.س","valueClass":"text-rose-700"}]'>
+                                        <i data-lucide="eye" class="hr-act__icon"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="text-slate-300 text-xs">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2">{% if a.document %}{% include "components/table_act_file.html" with url=a.document.url title="عرض الملف" %}{% else %}—{% endif %}</td>
+                                {% if can_edit_absence or can_delete_absence %}
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center justify-center gap-1">
+                                        {% if a.applied_to_payroll_id %}
+                                        <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5" title="مُطبّق على مسير رواتب">مُرحّل</span>
+                                        {% else %}
+                                        {% if can_edit_absence %}
+                                        <button type="button"
+                                                class="hr-act hr-act--edit"
+                                                title="تعديل الغياب"
+                                                aria-label="تعديل الغياب"
+                                                @click="$dispatch('open-absence-edit', {
+                                                    id: {{ a.id }},
+                                                    absence_date: '{{ a.absence_date|date:'Y-m-d' }}',
+                                                    days: {{ a.days }},
+                                                    reason: '{{ a.reason|escapejs }}',
+                                                    notes: '{{ a.notes|escapejs }}'
+                                                })">
+                                            <i data-lucide="pencil" class="hr-act__icon"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if can_delete_absence %}
+                                        {% url 'web:delete_employee_absence' employee.id a.id as absence_del_url %}
+                                        {% include "components/table_act_delete.html" with url=absence_del_url confirm="هل أنت متأكد من حذف سجل الغياب؟" title="حذف الغياب" %}
+                                        {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-slate-500 py-12 border border-dashed border-slate-200 rounded-lg">
+                    <i data-lucide="user-minus" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                    لا بيانات
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Cash Shortages -->
+            {% if tab_visible.cash_shortages and default_employee_tab == 'cash_shortages' %}
+            <div x-show="activeTab==='cash_shortages'" class="space-y-3" style="display:none">
+                {% if cash_shortages %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                        <div class="text-xs text-slate-600 mb-1">إجمالي العجوزات</div>
+                        <div class="text-lg font-bold text-rose-700">{{ cash_shortages|length }} سجل</div>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div class="text-xs text-slate-600 mb-1">إجمالي المبالغ</div>
+                        <div class="text-lg font-bold text-amber-800">{{ cash_shortages_total|format_amount }} ر.س</div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600 text-xs">
+                            <tr>
+                                <th class="px-3 py-2 text-right font-bold">الرقم</th>
+                                <th class="px-3 py-2 text-right font-bold">التاريخ</th>
+                                <th class="px-3 py-2 text-right font-bold">الفرع</th>
+                                <th class="px-3 py-2 text-right font-bold">المبلغ</th>
+                                <th class="px-3 py-2 text-right font-bold">المسير</th>
+                                <th class="px-3 py-2 text-right font-bold">المستند</th>
+                                <th class="px-3 py-2 text-right font-bold">ملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for cs in cash_shortages %}
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-mono text-xs text-slate-600">{{ cs.serial_number|default:"—" }}</td>
+                                <td class="px-3 py-2 font-bold text-slate-800">{{ cs.shortage_date|date:"Y/m/d" }}</td>
+                                <td class="px-3 py-2 text-slate-600">{{ cs.branch.name }}</td>
+                                <td class="px-3 py-2 font-bold text-rose-700">{{ cs.amount|format_amount }} ر.س</td>
+                                <td class="px-3 py-2 text-xs">
+                                    {% if cs.applied_to_payroll %}
+                                    <span class="text-emerald-700 font-semibold">{{ cs.applied_to_payroll.period_year }}/{{ cs.applied_to_payroll.period_month|stringformat:"02d" }}</span>
+                                    {% else %}
+                                    <span class="text-amber-600">بانتظار المسير</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2">{% if cs.document %}{% include "components/table_act_file.html" with url=cs.document.url title="عرض المرفق" %}{% else %}—{% endif %}</td>
+                                <td class="px-3 py-2 text-xs text-slate-500">{{ cs.notes|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-slate-500 py-12 border border-dashed border-slate-200 rounded-lg">
+                    <i data-lucide="wallet" class="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                    لا بيانات
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Archive -->
+            {% if tab_visible.archive and default_employee_tab == 'archive' %}            <div x-show="activeTab==='archive'" style="display:none">
+            <div x-data="archivePager('archive')" x-init="init()" data-can-view-salary="{% if can_view_salary %}1{% else %}0{% endif %}" class="space-y-3">
+
+                <!-- Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        {% include "components/archive_type_filter.html" %}
+                    </div>
+                    <div class="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span>السجل: <span class="font-bold text-slate-800" x-text="totalCount">—</span></span>
+                        <template x-if="filter !== 'all'">
+                            <span class="text-slate-300">|</span>
+                        </template>
+                        <span x-show="filter !== 'all'" class="text-primary-700 font-semibold">
+                            معروض: <span class="font-bold" x-text="matchedCount"></span>
+                        </span>
+                        {% if employee.employment_request %}
+                        <span class="text-slate-300">|</span>
+                        <span>توظيف: <span class="font-bold text-slate-800">{% if employee.employment_request.reviewed_at %}2{% else %}1{% endif %}</span></span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto overflow-y-auto" style="max-height: 60vh;">
+                        <table class="w-full text-sm hr-archive-table">
+                            <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10">
+                                <tr class="border-b border-slate-200">
+                                    <th class="px-3 py-2 text-right font-semibold w-32">التاريخ والوقت</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-32">نوع العملية</th>
+                                    <th class="px-3 py-2 text-right font-semibold">العنوان / التفاصيل</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-40">المنفّذ</th>
+                                    <th class="px-3 py-2 text-right font-semibold w-24">الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hr-archive-tbody-archive" class="divide-y divide-slate-100" x-ref="archiveBody">
+
+                                {# === طلب التوظيف === #}
+                                {% if employee.employment_request %}
+                                <tr class="archive-row hover:bg-slate-50 transition-colors" x-show="archiveRowVisible($el)" data-type="hire" data-ts="{{ employee.employment_request.created_at|date:'c' }}" data-text="إنشاء طلب توظيف للموظف {{ employee.employment_request.review_notes|default:''|truncatechars:80|escapejs }}">
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                            <span>{{ employee.employment_request.created_at|date:"Y-m-d" }}</span>
+                                            <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                            <span class="text-slate-500">{{ employee.employment_request.created_at|date:"H:i" }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-emerald-100 text-emerald-700">
+                                            <i data-lucide="user-plus" class="w-3 h-3"></i> طلب توظيف
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="hr-archive-cell-title text-slate-800 font-medium text-xs">
+                                            <span>إنشاء طلب توظيف للموظف</span>
+                                            {% if employee.employment_request.review_notes %}
+                                            <span class="text-slate-500">— {{ employee.employment_request.review_notes }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-slate-600 text-xs">
+                                        <i data-lucide="user" class="w-3 h-3 inline-block"></i>
+                                        {{ employee.employment_request.requested_by.get_full_name|default:employee.employment_request.requested_by.username|default:"—" }}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-blue-100 text-blue-700">مُنشأ</span>
+                                    </td>
+                                </tr>
+
+                                {% if employee.employment_request.reviewed_at %}
+                                <tr class="archive-row hover:bg-slate-50 transition-colors" x-show="archiveRowVisible($el)" data-type="hire" data-ts="{{ employee.employment_request.reviewed_at|date:'c' }}" data-text="تم اعتماد طلب التوظيف">
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                            <span>{{ employee.employment_request.reviewed_at|date:"Y-m-d" }}</span>
+                                            <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                            <span class="text-slate-500">{{ employee.employment_request.reviewed_at|date:"H:i" }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-emerald-100 text-emerald-700">
+                                            <i data-lucide="check-circle" class="w-3 h-3"></i> اعتماد توظيف
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="text-slate-800 font-medium">تم اعتماد طلب التوظيف</div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-slate-600 text-xs">
+                                        <i data-lucide="user-check" class="w-3 h-3 inline-block"></i>
+                                        {{ employee.employment_request.reviewed_by.get_full_name|default:employee.employment_request.reviewed_by.username|default:"—" }}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-700">معتمد</span>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endif %}
+
+                                {# === الإفادات والإنذارات والتصفية وإعادة التفعيل === #}
+                                {% for st in employee.statements_log.all %}
+                                <tr class="archive-row hover:bg-slate-50 transition-colors" x-show="archiveRowVisible($el)"
+                                    data-type="{{ st|archive_row_type }}"
+                                    data-ts="{{ st.created_at|date:'c' }}"
+                                    data-text="{{ st.title|truncatechars:80|escapejs }} {{ st.content|truncatechars:120|escapejs }}">
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="text-xs font-mono text-slate-800 whitespace-nowrap">
+                                            <span>{{ st.statement_date|date:"Y-m-d" }}</span>
+                                            <span class="text-slate-300 mx-1" aria-hidden="true">·</span>
+                                            <span class="text-slate-500">{{ st.created_at|date:"H:i" }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        {% if st|archive_row_type == 'end_of_service' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-800">
+                                            <i data-lucide="log-out" class="w-3 h-3"></i> نهاية خدمة
+                                        </span>
+                                        {% elif st.statement_type == 'terminate' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-red-100 text-red-700">
+                                            <i data-lucide="user-x" class="w-3 h-3"></i> تصفية
+                                        </span>
+                                        {% elif st.statement_type == 'reactivate' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-emerald-100 text-emerald-700">
+                                            <i data-lucide="user-check" class="w-3 h-3"></i> إعادة تفعيل
+                                        </span>
+                                        {% elif st.statement_type == 'salary_adjust' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-100 text-indigo-700">
+                                            <i data-lucide="trending-up" class="w-3 h-3"></i> تعديل راتب
+                                        </span>
+                                        {% elif st.statement_type == 'transfer' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-purple-100 text-purple-700">
+                                            <i data-lucide="move" class="w-3 h-3"></i> نقل
+                                        </span>
+                                        {% elif st.statement_type == 'warning' or st.statement_type == 'final_warning' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-red-100 text-red-700">
+                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% elif st.statement_type == 'penalty' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-700">
+                                            <i data-lucide="badge-minus" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% elif st.statement_type == 'acknowledgment' %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-700">
+                                            <i data-lucide="file-signature" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-blue-100 text-blue-700">
+                                            <i data-lucide="file-text" class="w-3 h-3"></i> {{ st.get_statement_type_display }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="hr-archive-cell-title">
+                                            <span class="text-slate-800 font-medium text-xs">{{ st.title }}</span>
+                                            {% if st.statement_type == 'transfer' and st.content %}
+                                                {% with td=st.content|from_json %}
+                                                {% if td %}
+                                                {% include "components/archive_transfer_detail_btn.html" with title=st.title transfer=td modal_uid=st.id %}
+                                                {% else %}
+                                                {% include "components/archive_row_detail_btn.html" with title=st.title content=st.content modal_uid=st.id %}
+                                                {% endif %}
+                                                {% endwith %}
+                                            {% elif st.content %}
+                                                {% if '───' in st.content or '═══' in st.content or st.content != st.title %}
+                                                {% include "components/archive_row_detail_btn.html" with title=st.title content=st.content modal_uid=st.id %}
+                                                {% endif %}
+                                            {% endif %}
+                                            {% if st.statement_type == 'terminate' %}
+                                            <a href="{% url 'web:hr_form_print' 'final_settlement' employee.id %}" target="_blank" rel="noopener" class="shrink-0 inline-flex items-center gap-1 text-[11px] text-blue-700 hover:text-blue-800 font-semibold">
+                                                <i data-lucide="file-text" class="w-3 h-3"></i>
+                                                PDF
+                                            </a>
+                                            {% endif %}
+                                            {% if st.document %}
+                                            <span class="shrink-0">{% include "components/media_preview_btn.html" with url=st.document.url title=st.title label="مرفق" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-slate-600 text-xs">
+                                        <i data-lucide="user" class="w-3 h-3 inline-block"></i>
+                                        {{ st.created_by.get_full_name|default:st.created_by.username|default:"—" }}
+                                    </td>
+                                    <td class="px-3 py-2 align-top">
+                                        {% if st.statement_type == 'terminate' %}
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-red-100 text-red-700">مُصفّى</span>
+                                        {% elif st.statement_type == 'reactivate' %}
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-700">مُفعَّل</span>
+                                        {% elif st.statement_type == 'salary_adjust' %}
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-emerald-100 text-emerald-700">مُعدَّل</span>
+                                        {% elif st.statement_type == 'transfer' %}
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-purple-100 text-purple-700">مُنقَّل</span>
+                                        {% else %}
+                                        <span class="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600">مُسجّل</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+
+                                {% include "components/archive_extra_rows.html" %}
+
+                                <tr class="archive-empty" x-show="archiveShowEmpty()" x-cloak>
+                                    <td colspan="5" class="px-3 py-10 text-center text-sm text-slate-500">لا نتائج مطابقة لنوع العملية</td>
+                                </tr>
+
+                                {% if not employee.employment_request and not employee.statements_log.all %}
+                                <tr>
+                                    <td colspan="5" class="px-3 py-12 text-center">
+                                        <div class="inline-flex flex-col items-center gap-2 text-slate-400">
+                                            <i data-lucide="archive-x" class="w-10 h-10"></i>
+                                            <span class="text-sm">لا بيانات</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div x-show="totalPages > 1" class="flex items-center justify-center gap-1 pt-1">
+                    <button type="button" @click="page = Math.max(1, page-1); refresh()" :disabled="page === 1"
+                            class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="chevron-right" class="hr-btn__icon"></i>
+                        السابق
+                    </button>
+                    <template x-for="p in totalPages" :key="p">
+                        <button type="button" @click="page = p; refresh()"
+                                :class="p === page ? 'hr-btn hr-btn--primary hr-btn--sm hr-pagination__num is-active' : 'hr-btn hr-btn--outline hr-btn--sm hr-pagination__num'"
+                                x-text="p"></button>
+                    </template>
+                    <button type="button" @click="page = Math.min(totalPages, page+1); refresh()" :disabled="page === totalPages"
+                            class="hr-btn hr-btn--outline hr-btn--sm hr-pagination__btn disabled:opacity-40 disabled:cursor-not-allowed">
+                        التالي
+                        <i data-lucide="chevron-left" class="hr-btn__icon"></i>
+                    </button>
+                    <span class="text-[11px] text-slate-500 mx-2">
+                        صفحة <span class="font-bold text-slate-700" x-text="page"></span> من <span class="font-bold text-slate-700" x-text="totalPages"></span>
+                    </span>
+                </div>
+
+                <p class="text-[11px] text-slate-400 text-center">
+                    <i data-lucide="info" class="w-3 h-3 inline-block"></i>
+                    يتم تسجيل كل عملية تتم على الموظف تلقائياً في هذا الأرشيف الزمني
+                </p>
+            </div>
+            </div>
+            {% endif %}
+            <!-- Accruals Ledger -->
+            {% if tab_visible.accruals and default_employee_tab == 'accruals' %}            <div x-show="activeTab==='accruals'" x-cloak class="space-y-4">
+                <div class="grid grid-cols-1 {% if employee.sponsorship_id %}md:grid-cols-3{% else %}md:grid-cols-2{% endif %} gap-4 mb-4">
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                        <i data-lucide="calendar" class="w-6 h-6 text-indigo-500 mb-2"></i>
+                        <span class="text-xs font-bold text-indigo-700">
+                            {% if accruals_balance.is_settled_snapshot %}أيام الإجازة عند التصفية{% else %}أيام الإجازة المتراكمة{% endif %}
+                        </span>
+                        <span class="text-xl font-black text-indigo-900 mt-1" dir="ltr">
+                            {{ accruals_balance.leave_days|floatformat:2 }}
+                        </span>
+                        <span class="text-[10px] text-indigo-600 mt-1">
+                            {% if accruals_balance.is_settled_snapshot and employee.end_date %}
+                            حتى {{ employee.end_date }}
+                            {% elif employee.leave_accrual_start_date %}
+                            افتتاحي + تراكم من {{ employee.leave_accrual_start_date }}
+                            {% else %}
+                            منذ {{ employee.hire_date|default:"تاريخ المباشرة" }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                        <i data-lucide="banknote" class="w-6 h-6 text-emerald-500 mb-2"></i>
+                        <span class="text-xs font-bold text-emerald-700">
+                            {% if accruals_balance.is_settled_snapshot %}قيمة الإجازات عند التصفية (ر.س){% else %}قيمة الإجازات (ر.س){% endif %}
+                        </span>
+                        <span class="text-xl font-black text-emerald-900 mt-1" dir="ltr">
+                            {{ accruals_balance.leave_amount|floatformat:2 }}
+                        </span>
+                    </div>
+                    {% if employee.sponsorship_id %}
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                        <i data-lucide="award" class="w-6 h-6 text-amber-500 mb-2"></i>
+                        <span class="text-xs font-bold text-amber-700">
+                            {% if accruals_balance.is_settled_snapshot %}مكافأة نهاية الخدمة عند التصفية (ر.س){% else %}مكافأة نهاية الخدمة (ر.س){% endif %}
+                        </span>
+                        <span class="text-xl font-black text-amber-900 mt-1" dir="ltr">
+                            {{ accruals_balance.eosb_amount|floatformat:2 }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if employee.leave_accrual_start_date %}
+                <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                    مخصص EOSB يتراكم من تاريخ المباشرة
+                    <strong dir="ltr">{{ employee.hire_date|date:"Y-m-d"|default:"—" }}</strong>
+                    — رصيد إجازة افتتاحي:
+                    <strong>{{ employee.opening_leave_days|floatformat:2 }}</strong> يوم
+                    — احتساب الإجازة من
+                    <strong dir="ltr">{{ employee.leave_accrual_start_date|date:"Y-m-d" }}</strong>
+                </p>
+                {% endif %}
+
+                <div class="hr-accruals-ledger border border-slate-200 rounded-lg bg-white shadow-sm">
+                    <div class="hr-accruals-ledger__scroll overflow-x-auto">
+                        <table class="w-full text-sm hr-accruals-ledger__table">
+                            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-right font-semibold">التاريخ</th>
+                                    <th class="px-4 py-3 text-right font-semibold">نوع الحركة</th>
+                                    <th class="px-4 py-3 text-center font-semibold border-x border-slate-200" colspan="2">الإجازة (أيام / قيمة)</th>
+                                    {% if employee.sponsorship_id %}
+                                    <th class="px-4 py-3 text-center font-semibold border-l border-slate-200">مكافأة نهاية الخدمة</th>
+                                    {% endif %}
+                                    <th class="px-4 py-3 text-center font-semibold hr-ledger-notes-col">ملاحظات</th>
+                                    {% if can_edit_ledger or can_delete_ledger %}
+                                    <th class="px-4 py-3 text-center font-semibold w-24">إجراءات</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {% for a in accruals %}
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-4 py-3 text-xs text-slate-800 font-mono">{{ a.date|date:"Y-m-d" }}</td>
+                                    <td class="px-4 py-3 text-xs font-bold
+                                        {% if a.transaction_type == 'monthly' %}text-indigo-600
+                                        {% elif a.transaction_type == 'leave_taken' %}text-rose-600
+                                        {% elif a.transaction_type == 'final_settlement' %}text-purple-600
+                                        {% else %}text-emerald-600{% endif %}">
+                                        {{ a.get_transaction_type_display }}
+                                    </td>
+                                    
+                                    <!-- Leave Changes -->
+                                    <td class="px-4 py-3 text-center border-r border-slate-200">
+                                        <span class="text-xs font-bold {% if a.leave_days_change > 0 %}text-emerald-600{% elif a.leave_days_change < 0 %}text-rose-600{% else %}text-slate-400{% endif %}" dir="ltr">
+                                            {% if a.leave_days_change > 0 %}+{% endif %}{{ a.leave_days_change|floatformat:2 }} يوم
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center border-l border-slate-200 bg-slate-50/50">
+                                        <span class="text-xs font-bold {% if a.leave_amount_change > 0 %}text-emerald-600{% elif a.leave_amount_change < 0 %}text-rose-600{% else %}text-slate-400{% endif %}" dir="ltr">
+                                            {% if a.leave_amount_change > 0 %}+{% endif %}{{ a.leave_amount_change|floatformat:2 }} ر.س
+                                        </span>
+                                    </td>
+
+                                    {% if employee.sponsorship_id %}
+                                    <!-- EOSB Changes -->
+                                    <td class="px-4 py-3 text-center border-l border-slate-200">
+                                        <span class="text-xs font-bold {% if a.eosb_amount_change > 0 %}text-emerald-600{% elif a.eosb_amount_change < 0 %}text-rose-600{% else %}text-slate-400{% endif %}" dir="ltr">
+                                            {% if a.eosb_amount_change > 0 %}+{% endif %}{{ a.eosb_amount_change|floatformat:2 }} ر.س
+                                        </span>
+                                    </td>
+                                    {% endif %}
+
+                                    <td class="hr-ledger-notes-cell px-4 py-3 text-center">
+                                        <template id="ledger-detail-html-{{ a.id }}">
+                                            <div class="hr-text-detail-modal__html-panel">
+                                                {% include 'employees/partials/ledger_calculation_detail.html' with ledger=a %}
+                                            </div>
+                                        </template>
+                                        <button type="button"
+                                                class="hr-act hr-act--view mx-auto"
+                                                title="عرض التفاصيل الحسابية"
+                                                aria-label="عرض التفاصيل الحسابية"
+                                                data-hr-text-detail-open
+                                                data-hr-text-detail-icon="calculator"
+                                                data-hr-text-detail-title="{{ a.get_transaction_type_display }}"
+                                                data-hr-text-detail-label="التفاصيل الحسابية"
+                                                data-hr-text-detail-print-url="{{ a.print_url }}"
+                                                data-hr-text-detail-employee-name="{{ employee.name }}"
+                                                data-hr-text-detail-html-id="ledger-detail-html-{{ a.id }}">
+                                            <i data-lucide="eye" class="hr-act__icon"></i>
+                                        </button>
+                                    </td>
+                                    {% if can_edit_ledger or can_delete_ledger %}
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            {% if a.is_locked %}
+                                            <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">مُقفل</span>
+                                            {% else %}
+                                            {% if can_edit_ledger %}
+                                            <button type="button"
+                                                    class="hr-act hr-act--edit"
+                                                    title="تعديل الملاحظات"
+                                                    aria-label="تعديل الملاحظات"
+                                                    @click="$dispatch('open-ledger-edit', { id: {{ a.id }}, notes: '{{ a.notes|escapejs }}' })">
+                                                <i data-lucide="pencil" class="hr-act__icon"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if can_delete_ledger %}
+                                            {% url 'web:delete_employee_ledger' employee.id a.id as ledger_del_url %}
+                                            {% include "components/table_act_delete.html" with url=ledger_del_url confirm="هل أنت متأكد من حذف هذا السجل؟ سيتم إعادة احتساب الأرصدة." title="حذف السجل" %}
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="{% if employee.sponsorship_id %}{% if can_edit_ledger or can_delete_ledger %}7{% else %}6{% endif %}{% else %}{% if can_edit_ledger or can_delete_ledger %}6{% else %}5{% endif %}{% endif %}" class="px-4 py-12 text-center">
+                                        <div class="inline-flex flex-col items-center gap-2 text-slate-400">
+                                            <i data-lucide="calculator" class="w-10 h-10"></i>
+                                            <span class="text-sm font-medium">لا بيانات</span>
+                                            <p class="text-xs mt-1">يتم إنشاء السجلات تلقائياً مع كل عملية إقفال للرواتب.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            {% endif %}
+
+            <!-- Termination Tab -->
+            {% if tab_visible.termination and default_employee_tab == 'termination' %}            <div x-show="activeTab==='termination'" x-cloak>
+                <div class="space-y-4" x-data="{ count: $el.querySelectorAll('.termination-card').length }" x-init="$nextTick(() => { count = $el.querySelectorAll('.termination-card').length })">
+                    {% for st in employee.statements_log.all %}
+                        {% if st.statement_type == 'terminate' %}
+                            <div class="termination-card bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all">
+                                <div class="flex items-center justify-between flex-wrap sm:flex-nowrap gap-4">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 flex-shrink-0">
+                                            <i data-lucide="file-check-2" class="w-6 h-6"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="font-bold text-slate-800 text-base">{{ st.title|default:"تصفية حساب" }}</h3>
+                                            <div class="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                                                <span class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> {{ st.created_at|date:"Y-m-d H:i" }}</span>
+                                                <span class="flex items-center gap-1.5"><i data-lucide="user" class="w-3.5 h-3.5"></i> {{ st.created_by.get_full_name|default:st.created_by.username }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                                        {% if st.content %}
+                                        {% include "components/archive_row_detail_btn.html" with title=st.title content=st.content modal_uid=st.id %}
+                                        {% endif %}
+                                        <a href="{% url 'web:hr_form_print' 'final_settlement' employee.id %}?stmt_id={{ st.id }}" target="_blank" class="flex-1 sm:flex-none px-4 py-2 text-sm font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                                            <i data-lucide="printer" class="w-4 h-4"></i>
+                                            <span>ملف التسوية PDF</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <div class="text-center py-16 bg-slate-50 border border-slate-200 rounded-xl border-dashed" x-show="count === 0" x-cloak>
+                        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="shield-check" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="font-bold text-slate-800 text-lg">لا بيانات</h3>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+    {% include "components/page_tabs_end.html" %}
+</div>

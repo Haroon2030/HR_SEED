@@ -1,0 +1,78 @@
+{% with ctx=ledger.calculation_display_context %}
+{% if ctx.kind == 'structured' %}
+<div class="hr-ledger-detail" dir="rtl">
+    <div class="hr-ledger-detail__hero">
+        <div class="hr-ledger-detail__hero-row">
+            <span class="hr-ledger-detail__hero-label">نوع العملية</span>
+            <span class="hr-ledger-detail__hero-value">{{ ctx.operation }}</span>
+        </div>
+        <div class="hr-ledger-detail__meta-grid">
+            <div class="hr-ledger-detail__meta-item hr-ledger-detail__meta-item--period">
+                <span class="hr-ledger-detail__meta-label">الفترة</span>
+                <span class="hr-ledger-detail__meta-value font-mono" dir="ltr">{{ ctx.period }}</span>
+            </div>
+            {% for m in ctx.meta %}
+            <div class="hr-ledger-detail__meta-item">
+                <span class="hr-ledger-detail__meta-label">{{ m.label }}</span>
+                <span class="hr-ledger-detail__meta-value {% if m.mono %}font-mono{% endif %}" dir="ltr">{{ m.value }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% for section in ctx.sections %}
+    <section class="hr-ledger-detail__section hr-ledger-detail__section--{{ section.theme|default:'amber' }}">
+        <header class="hr-ledger-detail__section-head">
+            <span class="hr-ledger-detail__section-title">{{ section.title }}</span>
+            {% if section.hint %}
+            <span class="hr-ledger-detail__section-hint">{{ section.hint }}</span>
+            {% endif %}
+        </header>
+
+        <div class="hr-ledger-detail__rows">
+            {% for row in section.rows %}
+            <div class="hr-ledger-detail__row{% if row.highlight %} hr-ledger-detail__row--highlight{% endif %}">
+                <span class="hr-ledger-detail__row-label">{{ row.label }}</span>
+                <span class="hr-ledger-detail__row-value" dir="ltr">
+                    {% if row.formula %}<span class="hr-ledger-detail__formula">{{ row.formula }}</span><span class="hr-ledger-detail__sep">←</span>{% endif %}
+                    <span class="hr-ledger-detail__result">{{ row.result }}</span>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if section.balance or section.balance_money %}
+        <div class="hr-ledger-detail__balances">
+            {% if section.balance %}
+            <div class="hr-ledger-detail__balance">
+                <span class="hr-ledger-detail__balance-label">{{ section.balance.label }}</span>
+                <span class="hr-ledger-detail__balance-eq" dir="ltr">
+                    <span class="hr-ledger-detail__bal-chip">{{ section.balance.before }}</span>
+                    <span class="hr-ledger-detail__bal-op">{{ section.balance.change }}</span>
+                    <span class="hr-ledger-detail__bal-eq">=</span>
+                    <span class="hr-ledger-detail__bal-chip hr-ledger-detail__bal-chip--total">{{ section.balance.after }} {{ section.balance.unit }}</span>
+                </span>
+            </div>
+            {% endif %}
+            {% if section.balance_money %}
+            <div class="hr-ledger-detail__balance">
+                <span class="hr-ledger-detail__balance-label">{{ section.balance_money.label }}</span>
+                <span class="hr-ledger-detail__balance-eq" dir="ltr">
+                    <span class="hr-ledger-detail__bal-chip">{{ section.balance_money.before }}</span>
+                    <span class="hr-ledger-detail__bal-op">{{ section.balance_money.change }}</span>
+                    <span class="hr-ledger-detail__bal-eq">=</span>
+                    <span class="hr-ledger-detail__bal-chip hr-ledger-detail__bal-chip--total">{{ section.balance_money.after }} {{ section.balance_money.unit }}</span>
+                </span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hr-ledger-detail hr-ledger-detail--plain">
+    <div class="hr-ledger-detail__text">{{ ctx.text }}</div>
+</div>
+{% endif %}
+{% endwith %}

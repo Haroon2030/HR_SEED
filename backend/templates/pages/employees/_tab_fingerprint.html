@@ -1,0 +1,185 @@
+{# fingerprint_data, fp_date_from, fp_date_to, can_edit_biometric_settings #}
+<div id="fingerprint" x-show="activeTab==='fingerprint'" class="space-y-4"{% if default_employee_tab != 'fingerprint' %} style="display:none"{% endif %}>
+
+    {% with fp=fingerprint_data settings=fp.settings %}
+    {% if not fp.linked %}
+    <div class="p-6 rounded-xl border border-dashed border-amber-300 bg-amber-50 text-amber-900 text-sm">
+        <p class="font-bold m-0">الموظف غير مربوط بجهاز البصمة</p>
+        <p class="mt-2 m-0">من {% url 'web:biometric_devices' as bio_devices_href %}{% include "components/hr_btn.html" with href=bio_devices_href label="أجهزة البصمة" variant="glass-primary" extra_class="inline-flex mt-2" %} اربط رقم المستخدم على الجهاز بهذا الموظف.</p>
+    </div>
+    {% else %}
+
+    {% if not fp.has_formal_enrollment %}
+    <div class="p-3 rounded-lg border border-amber-200 bg-amber-50/90 text-amber-900 text-xs">
+        <p class="font-bold m-0">يوجد سجلات بصمة لهذا الموظف لكن الربط الرسمي غير مكتمل.</p>
+        <p class="mt-1 mb-0">أعد حفظ الربط من {% url 'web:biometric_devices' as bio_devices_href2 %}{% include "components/hr_btn.html" with href=bio_devices_href2 label="أجهزة البصمة" variant="glass-primary" extra_class="inline-flex mt-1" %} لضمان ظهور البيانات بشكل صحيح.</p>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div class="lg:col-span-2 hr-glass-panel rounded-xl p-4">
+            <h4 class="text-sm font-bold m-0 mb-3">ربط الأجهزة</h4>
+            <ul class="space-y-1 text-sm m-0 p-0 list-none">
+                {% for en in fp.enrollments %}
+                <li class="flex flex-wrap gap-2 items-center py-1 border-b border-slate-100 last:border-0">
+                    <span class="font-bold">{{ en.device.name }}</span>
+                    <span dir="ltr">مستخدم {{ en.device_user_id }}</span>
+                    {% if en.device_user_name %}<span>({{ en.device_user_name }})</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="hr-glass-panel rounded-xl p-4 border border-primary-200/60" style="background:rgba(59,130,246,0.08);">
+            <p class="text-xs font-bold text-primary-800 m-0">آخر بصمة</p>
+            {% if fp.last_punch %}
+            <p class="text-lg font-bold mt-1 mb-0">{{ fp.last_punch.local_punched_at|date:"Y-m-d" }}</p>
+            <p class="text-sm font-bold m-0" dir="ltr">{{ fp.last_punch.local_punched_at|time:"H:i:s" }}</p>
+            <p class="text-xs mt-2 m-0">
+                <span class="px-2 py-0.5 rounded bg-white/80 border">{{ fp.last_punch.get_punch_type_display }}</span>
+                — {{ fp.last_punch.device.name }}
+            </p>
+            {% else %}
+            <p class="text-sm mt-2 m-0">لا بيانات</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if can_edit_biometric_settings %}
+    <form method="post" action="{% url 'web:save_employee_biometric_settings' employee.id %}"
+          class="hr-glass-panel rounded-xl p-4">
+        {% csrf_token %}
+        <input type="hidden" name="fp_from" value="{{ fp_date_from }}">
+        <input type="hidden" name="fp_to" value="{{ fp_date_to }}">
+        <h4 class="text-sm font-bold m-0 mb-3">إعدادات وقت الدخول والتأخير</h4>
+        <p class="text-xs mb-3 m-0">بصمات <strong>الدخول</strong> بعد (وقت الدخول + سماح التأخير) لا تظهر في الجدول — افتراضي 30 دقيقة.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+                <label class="block text-xs font-bold mb-1">وقت الدخول المتوقع</label>
+                <input type="time" name="expected_check_in" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white/80"
+                       value="{% if settings.expected_check_in %}{{ settings.expected_check_in|time:'H:i' }}{% endif %}">
+            </div>
+            <div>
+                <label class="block text-xs font-bold mb-1">وقت الخروج المتوقع</label>
+                <input type="time" name="expected_check_out" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white/80"
+                       value="{% if settings.expected_check_out %}{{ settings.expected_check_out|time:'H:i' }}{% endif %}">
+            </div>
+            <div>
+                <label class="block text-xs font-bold mb-1">سماح التأخير (دقيقة)</label>
+                <input type="number" name="late_grace_minutes" min="0" max="180" step="1"
+                       class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm bg-white/80"
+                       value="{{ settings.late_grace_minutes|default:30 }}">
+            </div>
+            <div class="flex items-end">
+                {% include "components/hr_btn.html" with label="حفظ الإعدادات" type="submit" variant="glass-primary" icon="save" extra_class="w-full" %}
+            </div>
+        </div>
+        {% if settings.expected_check_in %}
+        <p class="text-xs mt-2 m-0">حد إخفاء الدخول: {{ settings.check_in_cutoff_label }}</p>
+        {% endif %}
+    </form>
+    {% endif %}
+
+    <form id="fp-filter-form" method="get" action="{% url 'web:view_employee' employee.id %}"
+          class="hr-fp-toolbar flex flex-wrap gap-3 items-end text-sm"
+          hx-boost="false">
+        <input type="hidden" name="tab" value="fingerprint">
+        <div>
+            <label class="block text-xs font-bold mb-1">من تاريخ</label>
+            <input type="date" name="fp_from" value="{{ fp_date_from }}"
+                   class="px-3 py-2 border border-slate-300/80 rounded-md bg-white/70 min-w-[10rem]">
+        </div>
+        <div>
+            <label class="block text-xs font-bold mb-1">إلى تاريخ</label>
+            <input type="date" name="fp_to" value="{{ fp_date_to }}"
+                   class="px-3 py-2 border border-slate-300/80 rounded-md bg-white/70 min-w-[10rem]">
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+            {% include "components/hr_btn.html" with label="عرض" type="submit" variant="glass-primary" icon="filter" %}
+            {% include "components/hr_btn.html" with label="تحديث" type="button" variant="glass-sky" icon="refresh-cw" id="fp-refresh-btn" %}
+            {% for en in fp.enrollments %}{% if forloop.first %}
+            <a href="{% url 'web:attendance_records' %}?employee={{ employee.id }}&from={{ fp_date_from }}&to={{ fp_date_to }}&device={{ en.device_id }}&device_user={{ en.device_user_id }}"
+               class="hr-btn hr-btn--glass-emerald">
+                <i data-lucide="external-link" class="hr-btn__icon"></i>
+                <span>سجلات الحضور</span>
+            </a>
+            {% endif %}{% empty %}
+            <a href="{% url 'web:attendance_records' %}?employee={{ employee.id }}&from={{ fp_date_from }}&to={{ fp_date_to }}"
+               class="hr-btn hr-btn--glass-emerald">
+                <i data-lucide="external-link" class="hr-btn__icon"></i>
+                <span>سجلات الحضور</span>
+            </a>
+            {% endfor %}
+        </div>
+    </form>
+
+    {% if fp.hidden_late_count or fp.truncated %}
+    <p class="text-xs text-amber-900 bg-amber-50/90 border border-amber-200 rounded-lg px-3 py-2 m-0">
+        {% if fp.hidden_late_count %}
+        تم إخفاء {{ fp.hidden_late_count }} بصمة دخول متأخرة (بعد وقت الدخول + {{ settings.late_grace_minutes }} دقيقة).
+        {% endif %}
+        إجمالي السجلات في الفترة: {{ fp.total_raw_count }} — المعروض في الجدول: {{ fp.displayed_count }}.
+        {% if fp.truncated %}
+        <strong>يُعرض أول {{ fp.displayed_count }} سجلًا فقط</strong> — ضيّق الفترة أو افتح
+        <a href="{% url 'web:attendance_records' %}?employee={{ employee.id }}&from={{ fp_date_from }}&to={{ fp_date_to }}" class="underline font-bold">سجلات الحضور</a>
+        للعرض الكامل.
+        {% endif %}
+    </p>
+    {% endif %}
+
+    <div class="overflow-x-auto rounded-xl border border-slate-200/80 hr-glass-panel">
+        <table class="w-full text-sm">
+            <thead class="text-xs uppercase" style="background:rgba(241,245,249,0.85);">
+                <tr>
+                    <th class="px-3 py-2 text-right">التاريخ</th>
+                    <th class="px-3 py-2 text-right">الوقت</th>
+                    <th class="px-3 py-2 text-right">النوع</th>
+                    <th class="px-3 py-2 text-right">الجهاز</th>
+                    <th class="px-3 py-2 text-right">التحقق</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for p in fp.punches %}
+                <tr class="hover:bg-white/60 {% if fp.last_punch and p.id == fp.last_punch.id %}bg-primary-50/50{% endif %}">
+                    <td class="px-3 py-2 font-bold">{{ p.local_punched_at|date:"Y-m-d" }}</td>
+                    <td class="px-3 py-2 font-mono" dir="ltr">{{ p.local_punched_at|time:"H:i:s" }}</td>
+                    <td class="px-3 py-2">
+                        {% if p.punch_type == 'in' %}<span class="text-emerald-700 font-bold">دخول</span>
+                        {% elif p.punch_type == 'out' %}<span class="text-rose-700 font-bold">خروج</span>
+                        {% else %}{{ p.get_punch_type_display }}{% endif %}
+                    </td>
+                    <td class="px-3 py-2">{{ p.device.name }}</td>
+                    <td class="px-3 py-2 text-xs">{{ p.verify_mode_label|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center font-semibold">لا بيانات</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% endif %}
+    {% endwith %}
+</div>
+<script>
+(function () {
+    var form = document.getElementById('fp-filter-form');
+    var refreshBtn = document.getElementById('fp-refresh-btn');
+    if (!form || !refreshBtn) return;
+
+    function navigateWithFilters() {
+        var params = new URLSearchParams();
+        params.set('tab', 'fingerprint');
+        var from = form.querySelector('[name="fp_from"]');
+        var to = form.querySelector('[name="fp_to"]');
+        if (from && from.value) params.set('fp_from', from.value);
+        if (to && to.value) params.set('fp_to', to.value);
+        var qs = params.toString();
+        window.location.href = form.action + '?' + qs + '#fingerprint';
+    }
+
+    refreshBtn.addEventListener('click', navigateWithFilters);
+    if (window.lucide) window.lucide.createIcons();
+})();
+</script>

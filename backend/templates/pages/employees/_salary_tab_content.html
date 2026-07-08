@@ -1,0 +1,119 @@
+{% load custom_tags %}
+{# تبويب الراتب — مكوّنات العقد + صرف حسب الكفالة #}
+<div class="space-y-4">
+    {% if not can_edit_salary %}
+    <div class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+        يمكنك عرض بيانات الراتب فقط — التعديل يتطلب صلاحية <strong>تعديل الراتب</strong> أو صلاحيات مسير الرواتب.
+    </div>
+    {% endif %}
+
+    <input type="hidden" name="cash_amount" value="0">
+
+    <!-- مكوّنات الراتب -->
+    <div class="space-y-3">
+        <div class="flex flex-wrap items-center gap-2">
+            <i data-lucide="layers" class="w-4 h-4 text-slate-600"></i>
+            <h3 class="text-sm font-bold text-slate-800 m-0">مكوّنات الراتب الشهري</h3>
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                  :class="payrollMode() === 'transfer' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-900'">
+                <i data-lucide="wallet" class="w-3 h-3"></i>
+                <span x-text="payrollModeLabel()">{{ employee.payroll_salary_mode_label }}</span>
+            </span>
+        </div>
+        <p class="text-[11px] text-slate-500 m-0">
+            نوع الصرف يُحدد تلقائياً من <strong>الكفالة</strong> في تبويب بيانات الموظف.
+        </p>
+        <div class="hr-salary-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">الراتب الأساسي</label>
+                <input type="number" step="0.01" name="basic_salary" x-model="salaryBasic" class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono" dir="ltr"{% if not can_edit_salary %} readonly tabindex="-1"{% endif %}>
+            </div>
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">بدل السكن</label>
+                <input type="number" step="0.01" name="housing_allowance" x-model="salaryHousing" class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono" dir="ltr"{% if not can_edit_salary %} readonly tabindex="-1"{% endif %}>
+            </div>
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">بدل النقل <span class="font-normal text-slate-400">(اختياري)</span></label>
+                <input type="number" step="0.01" name="transport_allowance" x-model="salaryTransport" class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono" dir="ltr"{% if not can_edit_salary %} readonly tabindex="-1"{% endif %}>
+            </div>
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">بدل إضافي</label>
+                <input type="number" step="0.01" name="other_allowance" x-model="salaryOther" class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono" dir="ltr"{% if not can_edit_salary %} readonly tabindex="-1"{% endif %}>
+            </div>
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">
+                    بدل التغذية
+                    <span class="block text-[10px] font-normal text-slate-400 mt-0.5">لا يُحتسب ضمن مكافأة نهاية الخدمة</span>
+                </label>
+                <input type="number" step="0.01" name="meal_allowance" x-model="salaryMeal" class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono" dir="ltr" title="يُحسب في الراتب والمسير ولا يدخل في مكافأة نهاية الخدمة"{% if not can_edit_salary %} readonly tabindex="-1"{% endif %}>
+            </div>
+            <div class="hr-salary-grid__item rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 space-y-1.5">
+                <label class="block text-xs font-bold text-slate-600 m-0">
+                    نسبة خصم التأمينات (%)
+                    <span x-show="isSaudi()" class="block text-[10px] font-normal text-slate-400 mt-0.5">سعودي — اختر من نسب GOSI</span>
+                </label>
+                {% if can_edit_salary %}
+                <input type="hidden"
+                       name="insurance_deduction_rate"
+                       :value="(salaryInsuranceRate === '' || salaryInsuranceRate === null || Number.isNaN(Number(salaryInsuranceRate))) ? '' : salaryInsuranceRate">
+                <select x-show="isSaudi()"
+                        x-cloak
+                        x-model="salaryInsuranceRate"
+                        :disabled="!isSaudi()"
+                        class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono"
+                        dir="ltr">
+                    <option value="">-- اختر --</option>
+                    <option value="10.75">10.75%</option>
+                    <option value="10.25">10.25%</option>
+                    <option value="9.75">9.75%</option>
+                </select>
+                <input type="number"
+                       step="0.01"
+                       x-show="!isSaudi()"
+                       x-cloak
+                       x-model="salaryInsuranceRate"
+                       :disabled="isSaudi()"
+                       class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm bg-white font-mono"
+                       dir="ltr">
+                {% else %}
+                <input type="hidden" name="insurance_deduction_rate" value="{{ employee.insurance_deduction_rate|input_decimal }}">
+                <div class="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm bg-slate-50 font-mono text-slate-700" dir="ltr">
+                    {{ employee.insurance_deduction_rate|format_amount|default:"—" }}{% if employee.insurance_deduction_rate %}%{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hr-salary-total-card rounded-lg border border-primary-200 bg-primary-50/60 px-3 py-2.5 space-y-1 w-fit min-w-[10rem]">
+            <div class="text-xs font-bold text-primary-800">إجمالي الراتب (ر.س)</div>
+            <div class="text-base font-black text-primary-800 font-mono" dir="ltr" x-text="salaryTotal().toFixed(2)">{{ employee.total_salary|input_decimal }}</div>
+        </div>
+    </div>
+
+    <!-- تحويل بنكي — عند وجود كفالة -->
+    <div x-show="payrollMode() === 'transfer'" x-cloak class="w-fit max-w-full space-y-2">
+        {% include "components/bank_transfer_panel.html" with employee=employee editable=True banks=banks can_edit_salary=can_edit_salary %}
+        <p class="text-[10px] text-slate-500 m-0">مبلغ التحويل = <strong class="text-slate-700" x-text="salaryTotal().toFixed(2) + ' ر.س'">—</strong></p>
+    </div>
+
+    <!-- صرف نقدي — بدون كفالة -->
+    <div x-show="payrollMode() === 'cash'" x-cloak
+         class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+        <div class="flex items-center gap-2">
+            <i data-lucide="banknote" class="w-4 h-4 text-amber-800"></i>
+            <h3 class="text-sm font-bold text-amber-900">صرف نقدي</h3>
+        </div>
+        <p class="text-[11px] text-amber-900 m-0 leading-relaxed">
+            الموظف <strong>بدون كفالة</strong> — يُصرف الراتب <strong>كاملاً نقداً</strong> عبر مسير النقدي.
+            لا حاجة لبيانات البنك أو الآيبان.
+        </p>
+        <div class="rounded-lg bg-white border border-amber-200 p-3 text-xs text-amber-900">
+            مبلغ الصرف النقدي في المسير = <strong x-text="salaryTotal().toFixed(2) + ' ر.س'">—</strong> (بعد خصم التأمينات والخصومات الأخرى)
+        </div>
+    </div>
+
+    {% if not is_create and can_view_salary %}
+    <div class="mt-2">
+        {% include "components/salary_adjust_archive.html" with records=employee.statements_log.all filter_salary=True show_type_col=False section_id="edit" empty_text="لا بيانات" %}
+    </div>
+    {% endif %}
+</div>
