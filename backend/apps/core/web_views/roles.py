@@ -10,6 +10,7 @@ from apps.core.models import AppModule, Permission, Role
 from apps.core.forms import RoleForm
 from apps.core.selectors.permission_matrix import build_role_permissions_matrix
 from apps.core.services.access_control import assignable_roles_queryset, order_roles_queryset
+from apps.core.role_catalog import role_type_choices, arabic_role_label
 
 
 # =============================================================================
@@ -20,9 +21,23 @@ from apps.core.services.access_control import assignable_roles_queryset, order_r
 from apps.core.decorators import any_permission_required, permission_required
 
 
+def _role_type_choices_for_form(role=None):
+    """خيارات نوع الدور للنموذج — الأدوار النشطة + النوع الحالي إن كان قديماً."""
+    choices = list(role_type_choices())
+    current = getattr(role, 'role_type', None) if role else None
+    if current and current not in {value for value, _ in choices}:
+        choices.append((
+            current,
+            arabic_role_label(role_type=current, name=getattr(role, 'name', None)),
+        ))
+    return choices
+
+
 def _build_role_permissions_matrix(role):
     """جدول وحدات × عمليات لنموذج/صفحة صلاحيات الدور."""
-    return build_role_permissions_matrix(role)
+    ctx = build_role_permissions_matrix(role)
+    ctx['role_type_choices'] = _role_type_choices_for_form(role)
+    return ctx
 
 
 def _role_form_context(role=None):
@@ -37,7 +52,7 @@ def _role_form_context(role=None):
             'permission_tree': [],
             'default_group_id': '',
         }
-    ctx['role_type_choices'] = Role.RoleType.choices
+    ctx['role_type_choices'] = _role_type_choices_for_form(role)
     return ctx
 
 
