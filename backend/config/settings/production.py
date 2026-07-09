@@ -38,12 +38,24 @@ if _server_public_ip and _server_public_ip not in ALLOWED_HOSTS and _server_publ
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# قاعدة البيانات — PostgreSQL عبر Neon (خدمة سحابية)
-# صيغة الرابط: postgresql://user:pass@host/dbname?sslmode=require
+# قاعدة البيانات — PostgreSQL عبر Neon فقط (ممنوع SQLite في الإنتاج)
 # ══════════════════════════════════════════════════════════════════════════════
+from django.core.exceptions import ImproperlyConfigured
+
+if not env('DATABASE_URL', default='').strip():
+    raise ImproperlyConfigured(
+        'DATABASE_URL مطلوب في الإنتاج — عيّن رابط PostgreSQL (Neon) في Dokploy.'
+    )
+
 DATABASES = {
     'default': env.db('DATABASE_URL'),
 }
+
+_db_engine = DATABASES['default'].get('ENGINE', '')
+if 'postgresql' not in _db_engine:
+    raise ImproperlyConfigured(
+        'الإنتاج يتطلب PostgreSQL (Neon). SQLite مخصّص للتطوير المحلي فقط (DJANGO_ENV=development).'
+    )
 
 # الاتصال المستمر — يعيد استخدام الاتصال بدل فتح جديد لكل طلب (توفير ~200ms)
 DATABASES['default'].setdefault('CONN_MAX_AGE', env.int('CONN_MAX_AGE', default=600))

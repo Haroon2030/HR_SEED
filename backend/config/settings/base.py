@@ -214,11 +214,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# قاعدة البيانات — SQLite افتراضياً (يُستبدل في production.py بـ PostgreSQL)
+# قاعدة البيانات — placeholder (يُستبدل في development.py أو production.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 DATABASES = {
-    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR}/db.sqlite3')
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 # ── Celery (مهام خلفية) — يستخدم Redis عند توفر REDIS_URL ──

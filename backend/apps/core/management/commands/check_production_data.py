@@ -141,7 +141,7 @@ class Command(BaseCommand):
             return Issue(
                 'ok',
                 'مصدر البيانات',
-                'Neon — قاعدة موحدة (نفس DATABASE_URL للمحلي والإنتاج)',
+                'Neon — قاعدة إنتاج (منفصلة عن SQLite التطوير المحلي)',
             )
         if 'sqlite' in h or h in ('', '?', 'localhost', '127.0.0.1'):
             return Issue(

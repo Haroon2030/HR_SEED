@@ -36,23 +36,16 @@ CSRF_COOKIE_SECURE = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Database - DATABASE_URL from .env (Neon Postgres) or fallback to SQLite
+# Database — SQLite محلياً فقط (لا يُستخدم DATABASE_URL أبداً في التطوير)
+# الإنتاج منفصل تماماً: PostgreSQL/Neon عبر production.py
 # ══════════════════════════════════════════════════════════════════════════════
 
-if env('DATABASE_URL', default=''):
-    DATABASES = {'default': env.db('DATABASE_URL')}
-    DATABASES['default'].setdefault('CONN_MAX_AGE', 60)
-    DATABASES['default'].setdefault('DISABLE_SERVER_SIDE_CURSORS', True)
-    if DATABASES['default'].get('ENGINE', '').endswith('postgresql'):
-        _opts = DATABASES['default'].setdefault('OPTIONS', {})
-        _opts.setdefault('sslmode', env('DB_SSLMODE', default='require'))
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CORS - Allow all origins in development
