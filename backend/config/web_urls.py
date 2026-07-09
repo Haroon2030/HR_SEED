@@ -55,6 +55,7 @@ urlpatterns = [
     # كل عملية سريعة تنشئ PendingAction ينتظر دورة الموافقات
     # ══════════════════════════════════════════════════════════════
     path('employees/', web_views.list_employees, name='list_employees'),                                     # قائمة الموظفين
+    path('employees/create/', web_views.create_employee_full, name='create_employee_full'),                   # إضافة موظف مباشرة
     path('employees/picker/search/', web_views.employee_picker_search, name='employee_picker_search'),       # بحث اختيار موظف
     path('employees/barcode-labels/', web_views.employee_barcode_labels_index, name='employee_barcode_labels'),
     path('employees/barcode-labels/print/', web_views.employee_barcode_print_batch, name='employee_barcode_print_batch'),

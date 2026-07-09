@@ -1,11 +1,13 @@
 {% extends "pages/list_base.html" %}
+{% load custom_tags %}
 
 {% block page_title %}شاشة الموظفين{% endblock %}
 
 {% block list_actions %}
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto sm:justify-end">
 <form method="get"
       action="{% url 'web:list_employees' %}"
-      class="flex items-center gap-2 w-full sm:w-auto">
+      class="flex items-center gap-2 w-full sm:w-auto flex-1 sm:flex-initial">
     {% include "components/search_field.html" with name="q" value=query placeholder="بحث ذكي: اسم، هوية، جوال، فرع، قسم، جنسية، مهنة..." extra_class="flex-1 sm:w-80" aria_label="بحث الموظفين" %}
     {% include "components/hr_btn.html" with label="بحث" type="submit" variant="primary" icon="search" %}
     {% if query %}
@@ -13,6 +15,11 @@
     {% include "components/hr_btn.html" with href=clear_url label="" icon="x" variant="ghost" title="مسح البحث" extra_class="px-3" %}
     {% endif %}
 </form>
+{% if request.user|has_permission:'employees.add' %}
+{% url 'web:create_employee_full' as add_employee_url %}
+{% include "components/hr_btn.html" with href=add_employee_url label="إضافة موظف" variant="primary" icon="plus" extra_class="shrink-0 justify-center" %}
+{% endif %}
+</div>
 {% endblock %}
 
 {% block table_headers %}{% endblock %}

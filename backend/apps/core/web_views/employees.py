@@ -191,6 +191,39 @@ def list_employees(request):
 
 
 @login_required
+@permission_required('employees.add')
+def create_employee_full(request):
+    """إنشاء موظف مباشرة عبر النموذج الرئيسي الكامل."""
+    from apps.employees.models import Employee
+    from apps.employees.forms import EmployeeForm
+
+    if request.method == 'POST':
+        files = _prepare_employee_upload_files(request)
+        form = EmployeeForm(request.POST, files, user=request.user)
+        if form.is_valid():
+            if not user_can_edit_salary(request.user):
+                for field_name in EMPLOYEE_SALARY_FIELD_NAMES:
+                    if field_name in form.cleaned_data:
+                        form.cleaned_data[field_name] = getattr(Employee(), field_name)
+            emp = _save_employee_from_form(request, form)
+            messages.success(request, f'تم إضافة الموظف "{emp.name}" بنجاح')
+            return redirect('web:edit_employee', employee_id=emp.id)
+        for field, errors in form.errors.items():
+            messages.error(request, f'{field}: {errors[0]}')
+        return render(
+            request,
+            'pages/employees/edit.html',
+            _employee_edit_page_context(Employee(), form=form, is_create=True, user=request.user),
+        )
+
+    return render(
+        request,
+        'pages/employees/edit.html',
+        _employee_edit_page_context(Employee(), is_create=True, user=request.user),
+    )
+
+
+@login_required
 @permission_required('employees.view')
 @employee_branch_access_required
 def view_employee(request, employee_id):
