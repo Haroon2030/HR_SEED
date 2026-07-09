@@ -40,6 +40,10 @@ data_dump.json
 *.dump
 *.sql
 
+# Dokploy production copy-paste (contains real secrets — local only)
+docs/env-production-dokploy-8088.copypaste.env
+docs/*copypaste*.env
+
 # IDE
 .vscode/
 .idea/

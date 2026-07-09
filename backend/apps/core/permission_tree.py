@@ -27,7 +27,6 @@ PERMISSION_TREE_CONFIG: list[dict] = [
                 ],
             },
             {'id': 'hr_payroll', 'name': 'مسير الرواتب', 'module_codes': ['payroll']},
-            {'id': 'hr_cash_shortages', 'name': 'عجز الكاشير', 'module_codes': ['cash_shortages']},
         ],
     },
     {
@@ -38,31 +37,6 @@ PERMISSION_TREE_CONFIG: list[dict] = [
             {'id': 'org_branches', 'name': 'الفروع', 'module_codes': ['branches']},
             {'id': 'org_departments', 'name': 'الأقسام', 'module_codes': ['departments']},
             {'id': 'org_cost_centers', 'name': 'مراكز التكلفة', 'module_codes': ['cost_centers']},
-        ],
-    },
-    {
-        'id': 'maintenance',
-        'name': 'إدارة الصيانة',
-        'icon': 'wrench',
-        'children': [
-            {
-                'id': 'maint_operations',
-                'name': 'العمليات',
-                'module_codes': [
-                    'maintenance',
-                    'maintenance_screen_requests',
-                    'maintenance_screen_request_add',
-                    'maintenance_screen_assign',
-                    'maintenance_screen_manager_close',
-                    'maintenance_screen_branch_confirm',
-                    'maintenance_screen_return',
-                ],
-            },
-            {
-                'id': 'maint_setup',
-                'name': 'التهيئة',
-                'module_codes': ['maintenance_setup'],
-            },
         ],
     },
     {

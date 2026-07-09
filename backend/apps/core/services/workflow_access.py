@@ -50,20 +50,24 @@ def can_view_operations(user) -> bool:
 
 
 def stage_permission_required(user, stage) -> bool:
-    """فشل مغلق: بدون الصلاحية المناسبة → مرفوض (لا استثناء عند غياب السجل في DB)."""
+    """اعتماد الطلبات — مدير الموارد (operations.approve_gm)."""
     if user.is_superuser:
         return True
     if _is_super_or_admin(user):
         return True
-    if stage == PendingAction.Stage.BRANCH:
+    from apps.core.models import PendingAction
+    if stage in {
+        PendingAction.Stage.BRANCH,
+        PendingAction.Stage.GM,
+        PendingAction.Stage.OFFICER,
+    }:
         return (
-            has_permission(user, 'operations.approve_branch')
+            has_permission(user, 'operations.approve_gm')
+            or has_permission(user, 'operations.approve_officer')
+            or has_permission(user, 'operations.approve_branch')
             or has_permission(user, 'operations.approve_admin')
         )
-    code = STAGE_PERMISSION.get(stage)
-    if not code:
-        return False
-    return has_permission(user, code)
+    return False
 
 
 def can_return_operation(user) -> bool:
@@ -79,7 +83,7 @@ def can_resubmit_operation(user) -> bool:
 
 
 def user_can_reject_employment_request(user, emp_req) -> bool:
-    """رفض/إرجاع طلب توظيف — operations.return + نطاق المرحلة (بدون تجاوز بالدور فقط)."""
+    """رفض/إرجاع طلب توظيف — مدير الموارد فقط."""
     if not user or not getattr(user, 'is_authenticated', False) or not user.is_authenticated:
         return False
     if user.is_superuser or _is_super_or_admin(user):
@@ -88,25 +92,17 @@ def user_can_reject_employment_request(user, emp_req) -> bool:
         return False
 
     from apps.employees.models import EmploymentRequest
-    from apps.core.services.approval_routing import user_can_first_approve
+    from apps.core.workflow_simple import is_simple_hr_manager
 
     status = emp_req.status
-    pending_branch = {
+    pending = {
         EmploymentRequest.Status.PENDING_BRANCH,
         EmploymentRequest.Status.PENDING,
+        EmploymentRequest.Status.PENDING_GM,
+        EmploymentRequest.Status.PENDING_OFFICER,
     }
-    if status in pending_branch:
-        return user_can_first_approve(user, emp_req)
-    if status == EmploymentRequest.Status.PENDING_GM:
-        return (
-            has_permission(user, 'operations.approve_gm')
-            or has_permission(user, 'operations.approve_admin')
-        )
-    if status == EmploymentRequest.Status.PENDING_OFFICER:
-        return (
-            emp_req.assigned_officer_id == user.id
-            and has_permission(user, 'operations.approve_officer')
-        )
+    if status in pending:
+        return is_simple_hr_manager(user)
     return False
 
 

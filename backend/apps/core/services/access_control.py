@@ -31,9 +31,11 @@ PRIVILEGED_ROLE_TYPES = frozenset({
     Role.RoleType.HR_MANAGER,
 })
 
-# أدوار تعمل على مستوى الشركة (كل الفروع) — أخصائي/منفّذ الموارد البشرية
+# أدوار تعمل على مستوى الشركة (كل الفروع) — مدخل/مدير الموارد في النموذج المبسّط
 COMPANY_WIDE_BRANCH_ROLE_TYPES = frozenset({
     Role.RoleType.HR_OFFICER,
+    Role.RoleType.SPECIALIST,
+    Role.RoleType.HR_MANAGER,
 })
 
 # صلاحيات توسّع نطاق الفروع لكل الموظفين (مالية / رواتب / تقارير شاملة)
@@ -265,7 +267,10 @@ def order_roles_queryset(queryset: QuerySet) -> QuerySet:
 
 
 def assignable_roles_queryset(actor, queryset: QuerySet | None = None) -> QuerySet:
+    from apps.core.workflow_simple import ACTIVE_ROLE_TYPES
+
     qs = queryset if queryset is not None else Role.objects.filter(is_active=True)
+    qs = qs.filter(role_type__in=ACTIVE_ROLE_TYPES)
     if actor.is_superuser:
         return qs
 

@@ -7,7 +7,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold text-slate-900">طلبات العمليات السريعة</h1>
-            <p class="text-slate-500 text-xs">دورة الموافقات: {{ first_stage_tab_label|default:"موافقة أولى" }} → المدير العام → موظف الموارد</p>
+            <p class="text-slate-500 text-xs">دورة الاعتماد: مدخل الموارد يرفع → مدير الموارد يعتمد</p>
         </div>
     </div>
 
@@ -19,20 +19,10 @@
             <span>بانتظار إجرائي</span>
             {% if counts.inbox %}<span class="hr-tab-badge">{{ counts.inbox }}</span>{% endif %}
         </a>
-        <a href="?tab=pending_branch" role="tab" class="hr-tab-btn hr-tab-btn--amber{% if tab == 'pending_branch' %} is-active{% endif %}">
-            <i data-lucide="user" class="w-4 h-4"></i>
-            <span>{{ first_stage_tab_label|default:"موافقة أولى" }}</span>
-            {% if counts.pending_branch %}<span class="hr-tab-badge">{{ counts.pending_branch }}</span>{% endif %}
-        </a>
         <a href="?tab=pending_gm" role="tab" class="hr-tab-btn hr-tab-btn--indigo{% if tab == 'pending_gm' %} is-active{% endif %}">
             <i data-lucide="user-cog" class="w-4 h-4"></i>
-            <span>المدير العام</span>
+            <span>بانتظار مدير الموارد</span>
             {% if counts.pending_gm %}<span class="hr-tab-badge">{{ counts.pending_gm }}</span>{% endif %}
-        </a>
-        <a href="?tab=pending_officer" role="tab" class="hr-tab-btn hr-tab-btn--purple{% if tab == 'pending_officer' %} is-active{% endif %}">
-            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
-            <span>موظف الموارد</span>
-            {% if counts.pending_officer %}<span class="hr-tab-badge">{{ counts.pending_officer }}</span>{% endif %}
         </a>
         <a href="?tab=returned" role="tab" class="hr-tab-btn hr-tab-btn--rose{% if tab == 'returned' %} is-active{% endif %}">
             <i data-lucide="undo-2" class="w-4 h-4"></i>

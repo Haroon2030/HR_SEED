@@ -23,7 +23,6 @@ EMPLOYEE_TABS = (
     {'key': 'contract', 'label': 'العقد', 'order': 138},
     {'key': 'loans', 'label': 'السلف', 'order': 139},
     {'key': 'absences', 'label': 'الغيابات', 'order': 140},
-    {'key': 'cash_shortages', 'label': 'العجوزات', 'order': 141},
     {'key': 'fingerprint', 'label': 'البصمة', 'order': 142},
     {'key': 'docs', 'label': 'المستندات', 'order': 143},
     {'key': 'accruals', 'label': 'المخصصات والأرصدة', 'order': 144},

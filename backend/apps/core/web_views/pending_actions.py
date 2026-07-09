@@ -70,55 +70,36 @@ def _managed_scope_for_user(user) -> tuple[list[int], list[int]]:
 
 
 def _user_visible_actions(user):
-    from apps.employees.services.cash_shortage_access import (
-        branch_accountant_branch_ids,
-        is_branch_accountant,
-    )
-
     qs = PendingAction.objects.select_related(
         'employee', 'branch', 'administration', 'requested_by',
         'branch_reviewed_by', 'gm_reviewed_by', 'assigned_officer', 'returned_by',
     )
-    if user.is_superuser or _is_general_manager(user):
+    from apps.core.workflow_simple import is_simple_hr_manager, is_simple_hr_entry
+
+    if user.is_superuser or is_simple_hr_manager(user):
         return qs
 
-    if is_branch_accountant(user):
-        ba_ids = list(branch_accountant_branch_ids(user))
-        filters = Q(requested_by=user)
-        if ba_ids:
-            filters |= Q(
-                action_type=PendingAction.ActionType.CASH_SHORTAGE,
-                branch_id__in=ba_ids,
-            )
-        return qs.filter(filters).distinct()
+    if is_simple_hr_entry(user):
+        return qs.filter(requested_by=user)
 
-    filters = Q(requested_by=user)
-    managed_ids, managed_admin_ids = _managed_scope_for_user(user)
-    if managed_ids:
-        filters |= Q(branch_id__in=managed_ids)
-    if managed_admin_ids:
-        filters |= Q(administration_id__in=managed_admin_ids)
-    if _is_hr_officer(user):
-        filters |= Q(assigned_officer=user)
-    return qs.filter(filters).distinct()
+    return qs.filter(requested_by=user).distinct()
 
 
 def _inbox_for(user, qs):
+    from apps.core.workflow_simple import is_simple_hr_manager, is_simple_hr_entry
+
     f = Q()
     has_filter = False
-    if user.is_superuser or _is_general_manager(user):
-        f |= Q(status=PendingAction.Status.PENDING_GM)
+    if user.is_superuser or is_simple_hr_manager(user):
+        f |= Q(status__in=[
+            PendingAction.Status.PENDING_GM,
+            PendingAction.Status.PENDING_BRANCH,
+            PendingAction.Status.PENDING_OFFICER,
+        ])
         has_filter = True
-    first_q = first_stage_pending_q(user, model_status_pending_branch=PendingAction.Status.PENDING_BRANCH)
-    if first_q.children:
-        f |= first_q
+    if is_simple_hr_entry(user):
+        f |= Q(status=PendingAction.Status.RETURNED, requested_by=user)
         has_filter = True
-    if _is_hr_officer(user) or user.is_superuser:
-        f |= Q(status=PendingAction.Status.PENDING_OFFICER, assigned_officer=user) \
-            if not user.is_superuser \
-            else Q(status=PendingAction.Status.PENDING_OFFICER)
-        has_filter = True
-    f |= Q(status=PendingAction.Status.RETURNED, requested_by=user)
     return qs.filter(f) if has_filter else qs.none()
 
 
@@ -132,46 +113,33 @@ def _inbox_for(user, qs):
 # نعرضها بنفس البُنية في الـ template.
 
 def _user_visible_hire_requests(user):
-    """طلبات التوظيف المرئية للمستخدم بنفس منطق _user_visible_actions."""
     from apps.employees.models import EmploymentRequest
+    from apps.core.workflow_simple import is_simple_hr_manager, is_simple_hr_entry
 
     qs = EmploymentRequest.objects.select_related(
         'branch', 'administration', 'requested_by', 'branch_reviewed_by',
         'gm_reviewed_by', 'assigned_officer',
     )
-    if user.is_superuser or _is_general_manager(user):
+    if user.is_superuser or is_simple_hr_manager(user):
         return qs
-
-    filters = Q(requested_by=user)
-    managed_ids, managed_admin_ids = _managed_scope_for_user(user)
-    if managed_ids:
-        filters |= Q(branch_id__in=managed_ids)
-    if managed_admin_ids:
-        filters |= Q(administration_id__in=managed_admin_ids)
-    if _is_hr_officer(user):
-        filters |= Q(assigned_officer=user)
-    return qs.filter(filters).distinct()
+    if is_simple_hr_entry(user):
+        return qs.filter(requested_by=user)
+    return qs.filter(requested_by=user).distinct()
 
 
 def _inbox_for_hire(user, qs):
-    """فلترة طلبات التوظيف المنتظِرة إجراءً من المستخدم."""
     from apps.employees.models import EmploymentRequest
+    from apps.core.workflow_simple import is_simple_hr_manager
 
     f = Q()
     has_filter = False
-    if user.is_superuser or _is_general_manager(user):
-        f |= Q(status=EmploymentRequest.Status.PENDING_GM)
-        has_filter = True
-    first_q = first_stage_pending_q(user, model_status_pending_branch=EmploymentRequest.Status.PENDING_BRANCH)
-    if first_q.children:
-        f |= first_q
-        has_filter = True
-    if _is_hr_officer(user) or user.is_superuser:
-        f |= (
-            Q(status=EmploymentRequest.Status.PENDING_OFFICER, assigned_officer=user)
-            if not user.is_superuser
-            else Q(status=EmploymentRequest.Status.PENDING_OFFICER)
-        )
+    if user.is_superuser or is_simple_hr_manager(user):
+        f |= Q(status__in=[
+            EmploymentRequest.Status.PENDING_GM,
+            EmploymentRequest.Status.PENDING_BRANCH,
+            EmploymentRequest.Status.PENDING,
+            EmploymentRequest.Status.PENDING_OFFICER,
+        ])
         has_filter = True
     return qs.filter(f) if has_filter else qs.none()
 
@@ -344,9 +312,13 @@ def list_pending_actions(request):
 
     counts = {
         'inbox': get_sidebar_counts(request.user)['pending_for_me_count'],
-        'pending_branch': pa_agg['c_branch'] + hr_agg['c_branch'],
-        'pending_gm': pa_agg['c_gm'] + hr_agg['c_gm'],
-        'pending_officer': pa_agg['c_officer'] + hr_agg['c_officer'],
+        'pending_branch': 0,
+        'pending_gm': (
+            pa_agg['c_gm'] + hr_agg['c_gm']
+            + pa_agg['c_branch'] + hr_agg['c_branch']
+            + pa_agg['c_officer'] + hr_agg['c_officer']
+        ),
+        'pending_officer': 0,
         'returned': pa_agg['c_returned'],
         'approved': pa_agg['c_approved'] + hr_agg['c_approved'],
         'mine': pa_agg['c_mine'] + hr_agg['c_mine'],
@@ -387,15 +359,13 @@ def pending_action_detail(request, action_id):
         return redirect('web:list_pending_actions')
 
     officers = []
-    if _is_general_manager(request.user) and action.status == PendingAction.Status.PENDING_GM:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        officers = User.objects.filter(
-            is_active=True,
-            profile__role__role_type=Role.RoleType.HR_OFFICER,
-        ).select_related('profile').order_by('first_name', 'username')
 
     current_stage = action.current_stage
+    if action.status in {
+        PendingAction.Status.PENDING_BRANCH,
+        PendingAction.Status.PENDING_OFFICER,
+    }:
+        current_stage = PendingAction.Stage.GM
     can_act = bool(current_stage) and _can_act_at_stage(request.user, action, current_stage)
     can_resubmit = (
         action.status == PendingAction.Status.RETURNED
@@ -430,26 +400,8 @@ def _deny_if_action_not_visible(request, action):
 
 @login_required
 def branch_approve_action(request, action_id):
-    if request.method != 'POST':
-        return redirect('web:pending_action_detail', action_id=action_id)
-    notes = (request.POST.get('notes') or '').strip()
-    try:
-        with transaction.atomic():
-            action = _locked(action_id)
-            if _deny_if_action_not_visible(request, action):
-                return redirect('web:list_pending_actions')
-            if not _can_act_at_stage(request.user, action, PendingAction.Stage.BRANCH):
-                messages.error(request, 'لا تملك صلاحية الموافقة على هذا الطلب.')
-                return redirect('web:list_pending_actions')
-            from apps.core.services.pending_actions import branch_approve
-            branch_approve(action, request.user, notes)
-        if action.action_type == PendingAction.ActionType.CASH_SHORTAGE:
-            messages.success(request, 'تم اعتماد عجز الكاشير وتنفيذه.')
-        else:
-            messages.success(request, 'تمت موافقتك. الطلب الآن بانتظار المدير العام.')
-    except Exception as e:
-        messages.error(request, log_web_action_error('branch_approve_action', e))
-    return redirect('web:pending_action_detail', action_id=action_id)
+    """توافق مع الإصدارات القديمة — يُوجَّه لاعتماد مدير الموارد."""
+    return gm_approve_action(request, action_id)
 
 
 @login_required
@@ -457,54 +409,27 @@ def gm_approve_action(request, action_id):
     if request.method != 'POST':
         return redirect('web:pending_action_detail', action_id=action_id)
     notes = (request.POST.get('notes') or '').strip()
-    officer_id = request.POST.get('officer_id')
-    if not officer_id:
-        messages.error(request, 'يجب اختيار موظف موارد للإسناد.')
-        return redirect('web:pending_action_detail', action_id=action_id)
-
     try:
         with transaction.atomic():
             action = _locked(action_id)
             if _deny_if_action_not_visible(request, action):
                 return redirect('web:list_pending_actions')
-            if not _can_act_at_stage(request.user, action, PendingAction.Stage.GM):
-                messages.error(request, 'لا تملك صلاحية الموافقة كمدير عام.')
+            stage = PendingAction.Stage.GM
+            if not _can_act_at_stage(request.user, action, stage):
+                messages.error(request, 'لا تملك صلاحية اعتماد هذا الطلب.')
                 return redirect('web:list_pending_actions')
-
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            officer = User.objects.filter(id=officer_id, is_active=True).first()
-            if not officer:
-                messages.error(request, 'موظف الموارد المختار غير موجود.')
-                return redirect('web:pending_action_detail', action_id=action_id)
-
-            from apps.core.services.pending_actions import gm_approve_and_assign
-            gm_approve_and_assign(action, request.user, officer, notes)
-        messages.success(request, 'تمت موافقتك. تم إسناد المهمة لموظف الموارد.')
+            from apps.core.services.pending_actions import manager_approve
+            msg = manager_approve(action, request.user, notes)
+        messages.success(request, msg or 'تم اعتماد الطلب وتنفيذه بنجاح.')
     except Exception as e:
-        messages.error(request, log_web_action_error('branch_approve_action', e))
+        messages.error(request, log_web_action_error('gm_approve_action', e))
     return redirect('web:pending_action_detail', action_id=action_id)
 
 
 @login_required
 def officer_approve_action(request, action_id):
-    if request.method != 'POST':
-        return redirect('web:pending_action_detail', action_id=action_id)
-    notes = (request.POST.get('notes') or '').strip()
-    try:
-        with transaction.atomic():
-            action = _locked(action_id)
-            if _deny_if_action_not_visible(request, action):
-                return redirect('web:list_pending_actions')
-            if not _can_act_at_stage(request.user, action, PendingAction.Stage.OFFICER):
-                messages.error(request, 'لا تملك صلاحية تنفيذ هذا الطلب.')
-                return redirect('web:list_pending_actions')
-            from apps.core.services.pending_actions import officer_approve
-            msg = officer_approve(action, request.user, notes)
-        messages.success(request, f'تمت الموافقة وتنفيذ العملية: {msg}')
-    except Exception as e:
-        messages.error(request, log_web_action_error('officer_approve_action', e))
-    return redirect('web:pending_action_detail', action_id=action_id)
+    """توافق مع الإصدارات القديمة — يُوجَّه لاعتماد مدير الموارد."""
+    return gm_approve_action(request, action_id)
 
 
 @login_required

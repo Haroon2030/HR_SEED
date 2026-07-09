@@ -202,109 +202,47 @@ def _notify_general_managers(req, **kwargs):
         _notify_user(u, req, **kwargs)
 
 
-# ─── تحوّلات الحالة ────────────────────────────────────────────────────────
+# ─── تحوّلات الحالة (اعتماد واحد: مدير الموارد) ─────────────────────────────
 @transaction.atomic
-def branch_approve(req, user, notes=''):
-    """المرحلة الأولى (إدارة/فرع) توافق → الطلب ينتقل لمدير الموارد."""
-    from apps.employees.models import EmploymentRequest
-    if req.status not in {EmploymentRequest.Status.PENDING_BRANCH,
-                          EmploymentRequest.Status.PENDING}:
-        raise ValueError('هذا الطلب ليس في مرحلة الموافقة الأولى.')
-
-    req.status = EmploymentRequest.Status.PENDING_GM
-    req.branch_reviewed_by = user
-    req.branch_reviewed_at = timezone.now()
-    req.branch_notes = notes or ''
-    req.save(update_fields=[
-        'status', 'branch_reviewed_by', 'branch_reviewed_at', 'branch_notes'
-    ])
-
-    decision = resolve_first_approver(req)
-    approver_label = decision.stage_label
-    _notify_general_managers(
-        req,
-        title=f'طلب توظيف بانتظار موافقتك — {req.name}',
-        message=f'الفرع: {req.branch.name if req.branch else "—"} • وافق عليه {approver_label}',
-        icon='user-cog', color=Notification.Color.AMBER,
-    )
-    from apps.core.services.whatsapp import workflow_notifier
-    workflow_notifier.notify_whatsapp_pending_gm(req)
-    return req
-
-
-@transaction.atomic
-def gm_approve_and_assign(req, user, officer, notes=''):
-    """مدير الموارد يوافق ويُسند الطلب لأخصائي."""
-    from apps.employees.models import EmploymentRequest
-    from apps.core.models import Role
-
-    if req.status != EmploymentRequest.Status.PENDING_GM:
-        raise ValueError('هذا الطلب ليس في مرحلة موافقة مدير الموارد.')
-    if not officer or not officer.is_active:
-        raise ValueError('يجب اختيار أخصائي موارد فعّال للإسناد.')
-    profile = getattr(officer, 'profile', None)
-    if not profile or not profile.role or profile.role.role_type != Role.RoleType.HR_OFFICER:
-        raise ValueError('المستخدم المختار ليس "أخصائي موارد بشرية".')
-
-    now = timezone.now()
-    req.status = EmploymentRequest.Status.PENDING_OFFICER
-    req.gm_reviewed_by = user
-    req.gm_reviewed_at = now
-    req.gm_notes = notes or ''
-    req.assigned_officer = officer
-    req.assigned_at = now
-    req.save(update_fields=[
-        'status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes',
-        'assigned_officer', 'assigned_at'
-    ])
-
-    _notify_user(
-        officer, req,
-        title=f'طلب توظيف مُسند إليك — {req.name}',
-        message=f'الفرع: {req.branch.name if req.branch else "—"} • أسنده {user.get_full_name() or user.username}',
-        icon='clipboard-check', color=Notification.Color.INDIGO,
-    )
-    from apps.core.services.whatsapp import workflow_notifier
-    workflow_notifier.notify_whatsapp_officer_assigned(req, officer)
-    return req
-
-
-@transaction.atomic
-def officer_approve(req, user, notes=''):
-    """الأخصائي يوافق → يُنشَأ الموظف فعلياً."""
+def manager_approve(req, user, notes=''):
+    """مدير الموارد يعتمد طلب التوظيف ويُنشئ الموظف."""
     from apps.employees.models import EmploymentRequest, Employee
 
-    if req.status != EmploymentRequest.Status.PENDING_OFFICER:
-        raise ValueError('هذا الطلب ليس في مرحلة الأخصائي.')
-    if req.assigned_officer_id != user.id and not user.is_superuser:
-        raise ValueError('هذا الطلب غير مُسند إليك.')
+    if req.status not in {
+        EmploymentRequest.Status.PENDING_GM,
+        EmploymentRequest.Status.PENDING_BRANCH,
+        EmploymentRequest.Status.PENDING,
+        EmploymentRequest.Status.PENDING_OFFICER,
+    }:
+        raise ValueError('هذا الطلب ليس بانتظار اعتماد مدير الموارد.')
 
-    # ✅ التحقق من اكتمال بيانات الموظف قبل السماح بالموافقة النهائية
     missing = validate_employee_data_complete(req)
     if missing:
         missing_str = '، '.join(missing)
         raise ValueError(
-            'لا يمكن إكمال الموافقة قبل تعبئة بيانات الموظف.\n'
+            'لا يمكن إكمال الاعتماد قبل تعبئة بيانات الموظف.\n'
             f'الحقول الناقصة: {missing_str}.\n'
             'استخدم زر "تعديل البيانات" لإكمال المعلومات ثم أعد المحاولة.'
         )
 
     now = timezone.now()
     req.status = EmploymentRequest.Status.APPROVED
+    req.gm_reviewed_by = user
+    req.gm_reviewed_at = now
+    req.gm_notes = notes or ''
     req.officer_reviewed_at = now
     req.officer_notes = notes or ''
     req.reviewed_by = user
     req.reviewed_at = now
     req.review_notes = notes or ''
     req.save(update_fields=[
-        'status', 'officer_reviewed_at', 'officer_notes',
+        'status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes',
+        'officer_reviewed_at', 'officer_notes',
         'reviewed_by', 'reviewed_at', 'review_notes',
     ])
 
-    # إنشاء الموظف فعلياً (إن لم يكن مُنشأ من قبل)
     if not Employee.objects.filter(employment_request=req).exists():
         Employee.objects.create(
-            # الحقول الأصلية
             name=req.name,
             branch=req.branch,
             department=req.department,
@@ -313,7 +251,6 @@ def officer_approve(req, user, notes=''):
             commencement_document=req.commencement_document,
             employment_request=req,
             status=Employee.Status.ACTIVE,
-            # ✅ بيانات الموظف الكاملة المنسوخة من الطلب
             gender=req.gender or Employee.Gender.MALE,
             id_number=req.id_number,
             phone=req.phone,
@@ -346,15 +283,29 @@ def officer_approve(req, user, notes=''):
             other_documents=req.other_documents,
         )
 
-    # إشعارات الإكمال
     if req.requested_by_id:
         _notify_user(
             req.requested_by, req,
-            title=f'تمت الموافقة على طلب توظيف — {req.name}',
+            title=f'تم اعتماد طلب التوظيف — {req.name}',
             message='تم اعتماد الطلب وإضافة الموظف لقائمة العاملين.',
             icon='check-circle', color=Notification.Color.EMERALD,
         )
     return req
+
+
+@transaction.atomic
+def branch_approve(req, user, notes=''):
+    return manager_approve(req, user, notes=notes)
+
+
+@transaction.atomic
+def gm_approve_and_assign(req, user, officer=None, notes=''):
+    return manager_approve(req, user, notes=notes)
+
+
+@transaction.atomic
+def officer_approve(req, user, notes=''):
+    return manager_approve(req, user, notes=notes)
 
 
 @transaction.atomic
@@ -384,12 +335,20 @@ def reject(req, user, notes=''):
 
 def notify_branch_on_create(req):
     """يُستدعى مرة واحدة عند إنشاء طلب توظيف جديد."""
-    from apps.core.services.whatsapp import workflow_notifier
+    from apps.employees.models import EmploymentRequest
 
-    workflow_notifier.notify_whatsapp_request_created(req)
+    if req.status in {
+        EmploymentRequest.Status.PENDING_BRANCH,
+        EmploymentRequest.Status.PENDING,
+    }:
+        EmploymentRequest.objects.filter(pk=req.pk).update(
+            status=EmploymentRequest.Status.PENDING_GM,
+        )
+        req.status = EmploymentRequest.Status.PENDING_GM
+
     notify_on_first_stage(
         req,
-        title=f'طلب توظيف جديد بانتظار موافقتك — {req.name}',
+        title=f'طلب توظيف جديد بانتظار اعتمادك — {req.name}',
         message=f'الفرع: {req.branch.name if req.branch else "—"}',
         icon='user-plus',
         color=Notification.Color.PRIMARY,

@@ -13,9 +13,7 @@
             <p class="text-slate-500 text-xs">الموظف: <span class="font-semibold text-slate-700">{{ action.employee.name }}</span> • الفرع: {{ action.branch.name|default:"-" }}</p>
         </div>
         <div>
-            {% if action.status == 'pending_branch' %}<span class="px-3 py-1 rounded bg-amber-100 text-amber-800 text-sm font-semibold">⏳ بانتظار {{ first_decision.stage_label }}</span>
-            {% elif action.status == 'pending_gm' %}<span class="px-3 py-1 rounded bg-indigo-100 text-indigo-800 text-sm font-semibold">⏳ بانتظار المدير العام</span>
-            {% elif action.status == 'pending_officer' %}<span class="px-3 py-1 rounded bg-purple-100 text-purple-800 text-sm font-semibold">⏳ بانتظار موظف الموارد</span>
+            {% if action.status == 'pending_branch' or action.status == 'pending_gm' or action.status == 'pending_officer' %}<span class="px-3 py-1 rounded bg-indigo-100 text-indigo-800 text-sm font-semibold">⏳ بانتظار مدير الموارد</span>
             {% elif action.status == 'returned' %}<span class="px-3 py-1 rounded bg-rose-100 text-rose-800 text-sm font-semibold">↩ مُرتجَع للتعديل</span>
             {% elif action.status == 'approved' %}<span class="px-3 py-1 rounded bg-emerald-100 text-emerald-800 text-sm font-semibold">✓ مُنفَّذ</span>
             {% endif %}
@@ -148,59 +146,50 @@
                     </form>
                 {% endif %}
 
-                {% if can_act and current_stage == 'branch' %}
+                {% if can_act and current_stage == 'gm' %}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% with approve_label="موافقة كـ "|add:first_decision.stage_label %}
-                        {% include "components/hr_btn.html" with label=approve_label type="button" variant="success" icon="check" x_click="panel='approve'" %}
-                        {% endwith %}
+                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="indigo" icon="check" x_click="panel='approve'" %}
                         {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
                     </div>
-                    <form method="POST" action="{% url 'web:branch_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
+                    <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
                         <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
                         <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                         <div class="flex justify-end gap-2">
                             {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="تأكيد الموافقة" type="submit" variant="success" %}
+                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="indigo" %}
                         </div>
                     </form>
                 {% endif %}
 
-                {% if can_act and current_stage == 'gm' %}
+                {% if can_act and current_stage == 'branch' %}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% include "components/hr_btn.html" with label="موافقة وإسناد لموظف موارد" type="button" variant="indigo" icon="user-cog" x_click="panel='approve'" %}
+                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="success" icon="check" x_click="panel='approve'" %}
                         {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
                     </div>
                     <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
-                        <label class="block text-xs font-semibold text-slate-600">إسناد إلى موظف موارد <span class="text-red-500">*</span></label>
-                        <select name="officer_id" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                            <option value="">— اختر موظف موارد —</option>
-                            {% for u in officers %}
-                                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}{% if u.profile.branch %} ({{ u.profile.branch.name }}){% endif %}</option>
-                            {% endfor %}
-                        </select>
-                        <label class="block text-xs font-semibold text-slate-600 mt-2">ملاحظات (اختياري)</label>
+                        <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
                         <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                         <div class="flex justify-end gap-2">
                             {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="موافقة وإسناد" type="submit" variant="indigo" %}
+                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="success" %}
                         </div>
                     </form>
                 {% endif %}
 
                 {% if can_act and current_stage == 'officer' %}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% include "components/hr_btn.html" with label="موافقة وتنفيذ نهائي" type="button" variant="purple" icon="check" x_click="panel='approve'" %}
+                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="purple" icon="check" x_click="panel='approve'" %}
                         {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
                     </div>
-                    <form method="POST" action="{% url 'web:officer_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
+                    <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
                         <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
                         <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                         <div class="flex justify-end gap-2">
                             {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="أوافق وأنفّذ" type="submit" variant="purple" %}
+                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="purple" %}
                         </div>
                     </form>
                 {% endif %}

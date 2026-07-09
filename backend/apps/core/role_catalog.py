@@ -1,16 +1,15 @@
 """
-كتالوج الأدوار — تسمية تقنية موحّدة (رمز إنجليزي + وصف عربي).
-يُستخدم في النماذج، أوامر الإعداد، والهجرة.
+كتالوج الأدوار — نموذج مبسّط (3 أدوار نشطة).
 """
 from __future__ import annotations
 
 import re
 
 from apps.core.models import Role
+from apps.core.workflow_simple import ACTIVE_ROLE_TYPES
 
 
 def role_type_label(role_type: str) -> str:
-    """تسمية نوع الدور في القوائم: CODE — الوصف."""
     entry = ROLE_CATALOG.get(role_type)
     if entry:
         return entry['type_label']
@@ -24,13 +23,7 @@ def role_type_choices() -> list[tuple[str, str]]:
 ROLE_TYPE_ORDER = [
     Role.RoleType.ADMIN,
     Role.RoleType.HR_MANAGER,
-    Role.RoleType.HR_OFFICER,
-    Role.RoleType.ADMIN_MANAGER,
-    Role.RoleType.MANAGER,
-    Role.RoleType.BRANCH_ACCOUNTANT,
     Role.RoleType.SPECIALIST,
-    Role.RoleType.EMPLOYEE,
-    Role.RoleType.MAINTENANCE_MANAGER,
 ]
 
 ROLE_CATALOG: dict[str, dict[str, str]] = {
@@ -38,94 +31,46 @@ ROLE_CATALOG: dict[str, dict[str, str]] = {
         'code': 'ADMIN',
         'name': 'ADMIN — مدير النظام',
         'type_label': 'ADMIN — مدير النظام (صلاحيات كاملة)',
-        'description': (
-            'صلاحيات كاملة: مستخدمون، أدوار، إعدادات، فروع، موظفون، رواتب، تقارير، '
-            'وجميع مراحل الموافقات.'
-        ),
+        'description': 'صلاحيات كاملة: مستخدمون، إعدادات، موظفون، رواتب، تقارير، واعتماد الطلبات.',
     },
     Role.RoleType.HR_MANAGER: {
         'code': 'HR_MANAGER',
-        'name': 'HR_MANAGER — مدير الموارد البشرية',
-        'type_label': 'HR_MANAGER — مدير الموارد البشرية (المدير العام)',
+        'name': 'HR_MANAGER — مدير الموارد',
+        'type_label': 'HR_MANAGER — مدير الموارد (اعتماد وتنفيذ)',
         'description': (
-            'إدارة شؤون الموظفين على مستوى الشركة، الرواتب، المستخدمون، التقارير الشاملة، '
-            'والموافقة العامة (المرحلة الثانية) في دورة الطلبات.'
-        ),
-    },
-    Role.RoleType.HR_OFFICER: {
-        'code': 'HR_OFFICER',
-        'name': 'HR_OFFICER — منفّذ الموارد البشرية',
-        'type_label': 'HR_OFFICER — منفّذ عمليات الموارد البشرية',
-        'description': (
-            'تنفيذ المهام المُسندة بعد اعتماد المدير العام (المرحلة الأخيرة في دورة الموافقات).'
-        ),
-    },
-    Role.RoleType.ADMIN_MANAGER: {
-        'code': 'ADMIN_MANAGER',
-        'name': 'ADMIN_MANAGER — مدير الإدارة',
-        'type_label': 'ADMIN_MANAGER — مدير الإدارة (موافقة أولى)',
-        'description': (
-            'الموافقة الأولى على طلبات موظفي الإدارة المعيّنة عليه '
-            '(يُربط من التهيئة → الإدارات).'
-        ),
-    },
-    Role.RoleType.MANAGER: {
-        'code': 'BRANCH_MANAGER',
-        'name': 'BRANCH_MANAGER — مدير الفرع',
-        'type_label': 'BRANCH_MANAGER — مدير الفرع (موافقة أولى)',
-        'description': (
-            'إدارة موظفي الفرع والموافقة الأولى على طلباتهم عند عدم وجود مدير إدارة فعّال.'
-        ),
-    },
-    Role.RoleType.BRANCH_ACCOUNTANT: {
-        'code': 'BRANCH_ACCOUNTANT',
-        'name': 'BRANCH_ACCOUNTANT — محاسب الفرع',
-        'type_label': 'BRANCH_ACCOUNTANT — محاسب الفرع (اعتماد عجز الكاشير)',
-        'description': (
-            'اعتماد طلبات عجز الكاشير لموظفي الفروع المعيّنة عليه (profile.branch + assigned_branches).'
+            'اعتماد طلبات مدخل الموارد وتنفيذها، إدارة الموظفين والرواتب والتقارير على مستوى الشركة.'
         ),
     },
     Role.RoleType.SPECIALIST: {
-        'code': 'DATA_SPECIALIST',
-        'name': 'DATA_SPECIALIST — أخصائي إدخال البيانات',
-        'type_label': 'DATA_SPECIALIST — أخصائي إدخال البيانات',
-        'description': 'إدخال وتحديث بيانات الموظفين ضمن نطاق الفروع المعينة (بدون موافقات).',
-    },
-    Role.RoleType.EMPLOYEE: {
-        'code': 'EMPLOYEE',
-        'name': 'EMPLOYEE — موظف',
-        'type_label': 'EMPLOYEE — موظف (صلاحيات ذاتية)',
-        'description': 'عرض البيانات الشخصية وطلب الإجازات فقط.',
-    },
-    Role.RoleType.MAINTENANCE_MANAGER: {
-        'code': 'MAINTENANCE_MANAGER',
-        'name': 'MAINTENANCE_MANAGER — مدير الصيانة',
-        'type_label': 'MAINTENANCE_MANAGER — مدير الصيانة',
+        'code': 'HR_ENTRY',
+        'name': 'HR_ENTRY — مدخل الموارد',
+        'type_label': 'HR_ENTRY — مدخل الموارد (إدخال ورفع الطلبات)',
         'description': (
-            'استلام طلبات الصيانة من الفروع، إسنادها لعمال الصيانة، '
-            'وإغلاق الطلبات بعد التنفيذ.'
+            'إدخال وتحديث بيانات الموظفين ورفع طلبات العمليات السريعة — يرى كل الفروع.'
         ),
     },
 }
 
-# أسماء قديمة شائعة → role_type (للهجرة)
 LEGACY_ROLE_NAME_TO_TYPE: dict[str, str] = {
     'الأدمن': Role.RoleType.ADMIN,
+    'مدير النظام': Role.RoleType.ADMIN,
     'مدير الموارد البشرية': Role.RoleType.HR_MANAGER,
+    'مدير الموارد': Role.RoleType.HR_MANAGER,
     'الموارد البشرية': Role.RoleType.HR_MANAGER,
-    'أخصائي موارد بشرية': Role.RoleType.HR_OFFICER,
-    'مدير إدارة': Role.RoleType.ADMIN_MANAGER,
-    'مدير فرع': Role.RoleType.MANAGER,
-    'محاسب الفرع': Role.RoleType.BRANCH_ACCOUNTANT,
+    'أخصائي موارد بشرية': Role.RoleType.SPECIALIST,
     'أخصائي إدخال البيانات': Role.RoleType.SPECIALIST,
-    'موظف': Role.RoleType.EMPLOYEE,
-    'مدير المالية': Role.RoleType.MANAGER,
+    'مدخل الموارد': Role.RoleType.SPECIALIST,
+    'مدير إدارة': Role.RoleType.HR_MANAGER,
+    'مدير فرع': Role.RoleType.HR_MANAGER,
+    'محاسب الفرع': Role.RoleType.HR_MANAGER,
+    'موظف': Role.RoleType.SPECIALIST,
+    'مدير المالية': Role.RoleType.HR_MANAGER,
     'المدير التقني': Role.RoleType.ADMIN,
+    'منفّذ الموارد البشرية': Role.RoleType.SPECIALIST,
 }
 
 
 def _extract_arabic_label(text: str) -> str:
-    """استخراج الاسم العربي من صيغة CODE — الاسم أو الاسم (ملاحظة)."""
     label = (text or '').strip()
     if not label:
         return '—'
@@ -136,9 +81,12 @@ def _extract_arabic_label(text: str) -> str:
 
 
 def arabic_role_label(*, role_type: str | None = None, name: str | None = None) -> str:
-    """الاسم العربي للدور فقط — بدون الرمز الإنجليزي."""
     if role_type and role_type in ROLE_CATALOG:
         return _extract_arabic_label(ROLE_CATALOG[role_type]['name'])
     if name:
         return _extract_arabic_label(name)
     return '—'
+
+
+def is_active_role_type(role_type: str) -> bool:
+    return role_type in ACTIVE_ROLE_TYPES

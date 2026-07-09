@@ -87,7 +87,6 @@ urlpatterns = [
     path('employees/<int:employee_id>/absence/add/', web_views.add_employee_absence, name='add_employee_absence'),              # تسجيل غياب
     path('employees/<int:employee_id>/absences/<int:absence_id>/edit/', web_views.edit_employee_absence, name='edit_employee_absence'),
     path('employees/<int:employee_id>/absences/<int:absence_id>/delete/', web_views.delete_employee_absence, name='delete_employee_absence'),
-    path('employees/<int:employee_id>/cash-shortage/add/', web_views.add_employee_cash_shortage, name='add_employee_cash_shortage'),
     path('employees/<int:employee_id>/end-of-service/', web_views.end_of_service_employee, name='end_of_service_employee'), # تصفية نهاية خدمة أو استقالة
     path('employees/<int:employee_id>/ledger-init/', web_views.run_ledger_init, name='run_ledger_init'),        # تهيئة أرصدة الموظف
     path('employees/<int:employee_id>/ledger/<int:ledger_id>/edit/', web_views.edit_employee_ledger, name='edit_employee_ledger'),
@@ -273,36 +272,6 @@ urlpatterns = [
     # ══════════════════════════════════════════════════════════════
     # 11. مسير الرواتب الشهري
     # ══════════════════════════════════════════════════════════════
-    path('cash-shortages/', web_views.list_cash_shortages, name='list_cash_shortages'),
-    path('cash-shortages/register/', web_views.register_cash_shortage, name='register_cash_shortage'),
-
-    # ══════════════════════════════════════════════════════════════
-    # إدارة الصيانة
-    # ══════════════════════════════════════════════════════════════
-    path('maintenance/requests/', web_views.list_maintenance_requests, name='list_maintenance_requests'),
-    path('maintenance/requests/add/', web_views.add_maintenance_request, name='add_maintenance_request'),
-    path('maintenance/geocode/reverse/', web_views.maintenance_reverse_geocode, name='maintenance_reverse_geocode'),
-    path('maintenance/requests/<int:request_id>/', web_views.maintenance_request_detail, name='maintenance_request_detail'),
-    path('maintenance/requests/<int:request_id>/assign/', web_views.assign_maintenance_request_view, name='assign_maintenance_request'),
-    path('maintenance/requests/<int:request_id>/close/', web_views.manager_close_maintenance_request, name='manager_close_maintenance_request'),
-    path('maintenance/requests/<int:request_id>/confirm/', web_views.branch_confirm_maintenance_request, name='branch_confirm_maintenance_request'),
-    path('maintenance/requests/<int:request_id>/return/', web_views.return_maintenance_request_view, name='return_maintenance_request'),
-    path('maintenance/requests/<int:request_id>/resubmit/', web_views.resubmit_maintenance_request_view, name='resubmit_maintenance_request'),
-    path('maintenance/report/<str:token>/', web_views.worker_report_maintenance, name='worker_report_maintenance'),
-    path('maintenance/setup/', web_views.maintenance_setup, name='maintenance_setup'),
-    path('maintenance/setup/tab/', web_views.maintenance_setup_tab, name='maintenance_setup_tab'),
-    path('maintenance/assets/add/', web_views.add_maintenance_asset, name='add_maintenance_asset'),
-    path('maintenance/assets/<int:asset_id>/edit/', web_views.edit_maintenance_asset, name='edit_maintenance_asset'),
-    path('maintenance/assets/<int:asset_id>/delete/', web_views.delete_maintenance_asset, name='delete_maintenance_asset'),
-    path('maintenance/trades/', web_views.list_maintenance_trades, name='list_maintenance_trades'),
-    path('maintenance/trades/add/', web_views.add_maintenance_trade, name='add_maintenance_trade'),
-    path('maintenance/trades/<int:trade_id>/edit/', web_views.edit_maintenance_trade, name='edit_maintenance_trade'),
-    path('maintenance/trades/<int:trade_id>/delete/', web_views.delete_maintenance_trade, name='delete_maintenance_trade'),
-    path('maintenance/workers/', web_views.list_maintenance_workers, name='list_maintenance_workers'),
-    path('maintenance/workers/add/', web_views.add_maintenance_worker, name='add_maintenance_worker'),
-    path('maintenance/workers/<int:worker_id>/edit/', web_views.edit_maintenance_worker, name='edit_maintenance_worker'),
-    path('maintenance/workers/<int:worker_id>/delete/', web_views.delete_maintenance_worker, name='delete_maintenance_worker'),
-
     path('payroll/', payroll_views.list_payroll_runs, name='list_payroll_runs'),                            # قائمة المسيرات
     path('payroll/export/', payroll_views.export_payroll_list_excel, name='export_payroll_list_excel'),    # تصدير المسير الموحّد
     path('payroll/create/', payroll_views.create_payroll_run, name='create_payroll_run'),                    # إنشاء/بناء مسير

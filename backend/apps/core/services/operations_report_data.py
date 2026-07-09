@@ -57,7 +57,6 @@ SECTION_SPECS: tuple[tuple[str, str, tuple[int, int, int], tuple[str, ...]], ...
         ),
     ),
     ('absences', 'الغيابات', (249, 115, 22), (PendingAction.ActionType.ABSENCE,)),
-    ('cash_shortages', 'عجز الكاشير', (220, 38, 38), (PendingAction.ActionType.CASH_SHORTAGE,)),
     ('business_trips', 'رحلات العمل', (6, 182, 212), (PendingAction.ActionType.BUSINESS_TRIP,)),
     ('custody', 'العهد', (139, 92, 246), (
         PendingAction.ActionType.CUSTODY_RECEIVE,

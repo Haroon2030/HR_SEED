@@ -165,31 +165,26 @@ def _is_hr_officer(user):
 
 def _can_act_at_stage(user, action, stage):
     """
-    هل يحق للمستخدم اتخاذ قرار (موافقة/إرجاع) في مرحلة معينة؟
-    يتطلب صلاحية operations.* المناسبة + نطاق الدور/الفرع.
+    هل يحق للمستخدم اعتماد الطلب؟
+    نموذج مبسّط: مدير الموارد فقط (مرحلة GM).
     """
     from apps.core.models import PendingAction
     from apps.core.services.workflow_access import stage_permission_required
+    from apps.core.workflow_simple import is_simple_hr_manager
 
     if user.is_superuser:
         return True
 
+    if stage in {PendingAction.Stage.BRANCH, PendingAction.Stage.OFFICER}:
+        stage = PendingAction.Stage.GM
+
+    if stage != PendingAction.Stage.GM:
+        return False
+
     if not stage_permission_required(user, stage):
         return False
 
-    if stage == PendingAction.Stage.BRANCH:
-        if action.action_type == PendingAction.ActionType.CASH_SHORTAGE:
-            from apps.employees.services.cash_shortage_access import user_can_approve_cash_shortage
-            return user_can_approve_cash_shortage(user, action)
-        return _can_review_action(user, action)
-
-    if stage == PendingAction.Stage.GM:
-        return True
-
-    if stage == PendingAction.Stage.OFFICER:
-        return action.assigned_officer_id == user.id
-
-    return False
+    return is_simple_hr_manager(user)
 
 
 def _role_ok_at_stage(user, action, stage):

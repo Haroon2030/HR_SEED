@@ -112,61 +112,37 @@ def _get_request_or_404(request_id):
 
 @login_required
 def approve_employment_request(request, request_id):
-    """مرحلة 1: مدير الإدارة/الفرع يوافق → ينتقل لمدير الموارد."""
-    emp_req = _get_request_or_404(request_id)
-
-    if not user_can_first_approve(request.user, emp_req):
-        messages.error(request, 'لا تملك صلاحية مراجعة هذا الطلب')
-        return redirect('web:list_employment_requests')
-
-    if request.method != 'POST':
-        return redirect('web:list_employment_requests')
-
-    if not stage_permission_required(request.user, PendingAction.Stage.BRANCH):
-        messages.error(request, 'لا تملك صلاحية الموافقة على هذه المرحلة.')
-        return redirect('web:list_employment_requests')
-
-    notes = request.POST.get('review_notes', '')
-    try:
-        svc.branch_approve(emp_req, request.user, notes=notes)
-        messages.success(
-            request,
-            f'تمت موافقتك على طلب "{emp_req.name}" — تم تحويله لمدير الموارد البشرية'
-        )
-    except ValueError as e:
-        messages.error(request, str(e))
-    return redirect('web:list_employment_requests')
+    return gm_approve_employment_request(request, request_id)
 
 
 @login_required
 def gm_approve_employment_request(request, request_id):
-    """مرحلة 2: مدير الموارد يوافق ويُسند لأخصائي."""
+    """اعتماد مدير الموارد — إنشاء الموظف مباشرة."""
     emp_req = _get_request_or_404(request_id)
 
     if request.method != 'POST':
         return redirect('web:list_employment_requests')
 
     from apps.employees.models import EmploymentRequest
-    if emp_req.status != EmploymentRequest.Status.PENDING_GM:
-        messages.error(request, 'لا يمكن الموافقة على هذا الطلب في مرحلته الحالية.')
+    if emp_req.status not in {
+        EmploymentRequest.Status.PENDING_GM,
+        EmploymentRequest.Status.PENDING_BRANCH,
+        EmploymentRequest.Status.PENDING,
+        EmploymentRequest.Status.PENDING_OFFICER,
+    }:
+        messages.error(request, 'لا يمكن الاعتماد على هذا الطلب في مرحلته الحالية.')
         return redirect('web:list_employment_requests')
 
     if not stage_permission_required(request.user, PendingAction.Stage.GM):
-        messages.error(request, 'لا تملك صلاحية الموافقة كمدير عام.')
+        messages.error(request, 'لا تملك صلاحية اعتماد طلبات التوظيف.')
         return redirect('web:list_employment_requests')
 
-    officer_id = request.POST.get('assigned_officer')
     notes = request.POST.get('review_notes', '')
-    if not officer_id:
-        messages.error(request, 'يجب اختيار أخصائي موارد لإسناد الطلب إليه')
-        return redirect('web:list_employment_requests')
-
-    officer = User.objects.filter(id=officer_id).first()
     try:
-        svc.gm_approve_and_assign(emp_req, request.user, officer, notes=notes)
+        svc.manager_approve(emp_req, request.user, notes=notes)
         messages.success(
             request,
-            f'تمت موافقتك وإسناد الطلب إلى {officer.get_full_name() or officer.username}'
+            f'تم اعتماد طلب "{emp_req.name}" وإضافته لقائمة الموظفين',
         )
     except ValueError as e:
         messages.error(request, str(e))
@@ -175,33 +151,7 @@ def gm_approve_employment_request(request, request_id):
 
 @login_required
 def officer_approve_employment_request(request, request_id):
-    """مرحلة 3: الأخصائي يوافق → يُنشَأ الموظف."""
-    emp_req = _get_request_or_404(request_id)
-
-    if request.method != 'POST':
-        return redirect('web:list_employment_requests')
-
-    if (
-        emp_req.assigned_officer_id != request.user.id
-        and not request.user.is_superuser
-    ):
-        messages.error(request, 'هذا الطلب غير مُسند إليك.')
-        return redirect('web:list_employment_requests')
-
-    if not stage_permission_required(request.user, PendingAction.Stage.OFFICER):
-        messages.error(request, 'لا تملك صلاحية التنفيذ.')
-        return redirect('web:list_employment_requests')
-
-    notes = request.POST.get('review_notes', '')
-    try:
-        svc.officer_approve(emp_req, request.user, notes=notes)
-        messages.success(
-            request,
-            f'تمت الموافقة النهائية على "{emp_req.name}" وإضافته لقائمة الموظفين'
-        )
-    except ValueError as e:
-        messages.error(request, str(e))
-    return redirect('web:list_employment_requests')
+    return gm_approve_employment_request(request, request_id)
 
 
 @login_required
@@ -265,18 +215,23 @@ def edit_employment_request(request, request_id):
 
     emp_req = _get_request_or_404(request_id)
 
-    # تحقق من المرحلة
-    if emp_req.status != EmploymentRequest.Status.PENDING_OFFICER:
+    # تحقق من المرحلة — مدخل الموارد يعدّل قبل اعتماد المدير
+    from apps.employees.models import EmploymentRequest
+    editable_statuses = {
+        EmploymentRequest.Status.PENDING_GM,
+        EmploymentRequest.Status.PENDING_BRANCH,
+        EmploymentRequest.Status.PENDING,
+        EmploymentRequest.Status.PENDING_OFFICER,
+    }
+    if emp_req.status not in editable_statuses:
         messages.error(request, 'لا يمكن تعديل البيانات في هذه المرحلة.')
         return redirect('web:list_employment_requests')
 
-    # تحقق من الإسناد + صلاحية التنفيذ
-    if emp_req.assigned_officer_id != request.user.id and not request.user.is_superuser:
-        messages.error(request, 'هذا الطلب غير مُسند إليك.')
-        return redirect('web:list_employment_requests')
-    if not stage_permission_required(request.user, PendingAction.Stage.OFFICER):
-        messages.error(request, 'لا تملك صلاحية تعديل بيانات هذا الطلب.')
-        return redirect('web:list_employment_requests')
+    if emp_req.requested_by_id != request.user.id and not request.user.is_superuser:
+        from apps.core.workflow_simple import is_simple_hr_manager
+        if not is_simple_hr_manager(request.user):
+            messages.error(request, 'لا تملك صلاحية تعديل هذا الطلب.')
+            return redirect('web:list_employment_requests')
 
     active_tab = 'main'
     tab_status = svc.employment_request_tab_status(emp_req)
@@ -304,7 +259,7 @@ def edit_employment_request(request, request_id):
 
             if action == 'save_and_approve':
                 try:
-                    svc.officer_approve(
+                    svc.manager_approve(
                         emp_req,
                         request.user,
                         notes=request.POST.get('review_notes', ''),

@@ -25,7 +25,6 @@ from apps.employees.status_ui import (
     employee_status_dist_palette,
     get_employee_status_ui,
 )
-from apps.maintenance.status_ui import get_maintenance_status_ui
 
 _DIST_PALETTE = employee_status_dist_palette()
 
@@ -89,12 +88,6 @@ def employee_status_badge(employee=None, status=None, size='sm'):
         'ui': get_employee_status_ui(raw_status),
         'size': size,
     }
-
-
-@register.inclusion_tag('components/maintenance_status_badge.html')
-def maintenance_status_badge(request=None, status=None):
-    raw_status = status if status is not None else getattr(request, 'status', '')
-    return {'ui': get_maintenance_status_ui(raw_status)}
 
 
 @register.filter
@@ -339,13 +332,6 @@ def has_permission(user, permission_code):
     """
     from apps.core.decorators import has_permission as check_permission
     return check_permission(user, permission_code)
-
-
-@register.filter
-def has_maintenance_nav(user):
-    """هل يظهر قسم إدارة الصيانة في الشريط الجانبي؟"""
-    from apps.maintenance.sub_permissions import user_has_maintenance_nav
-    return user_has_maintenance_nav(user)
 
 
 @register.filter

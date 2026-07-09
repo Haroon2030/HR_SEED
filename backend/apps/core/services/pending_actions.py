@@ -819,7 +819,7 @@ def revert_employee_settlement_pending_status(action) -> None:
 
 
 def create_pending_action(*, action_type, employee, payload, requested_by, attachment=None):
-    """إنشاء طلب معلّق مع لقطة مسار الموافقة."""
+    """إنشاء طلب معلّق — يبدأ مباشرة عند مدير الموارد (اعتماد واحد)."""
     from apps.core.models import PendingAction
 
     if _is_settlement_pending_action(action_type):
@@ -836,6 +836,7 @@ def create_pending_action(*, action_type, employee, payload, requested_by, attac
         payload=payload,
         attachment=attachment,
         requested_by=requested_by,
+        status=PendingAction.Status.PENDING_GM,
     )
 
 
@@ -876,143 +877,55 @@ def create_and_execute_settlement_action(
 
 
 @transaction.atomic
-def branch_approve(action, user, notes=''):
-    """المرحلة الأولى (إدارة/فرع/محاسب) توافق → GM أو تنفيذ فوري لعجز الكاشير."""
+def manager_approve(action, user, notes=''):
+    """مدير الموارد يعتمد الطلب ويُنفّذه مباشرة (اعتماد واحد)."""
     from apps.core.models import PendingAction
-    from apps.employees.services.cash_shortage_access import user_can_approve_cash_shortage
 
-    if action.status != PendingAction.Status.PENDING_BRANCH:
-        raise ValueError('هذا الطلب ليس في مرحلة الموافقة الأولى.')
-
-    if action.action_type == PendingAction.ActionType.CASH_SHORTAGE:
-        if not user_can_approve_cash_shortage(user, action):
-            raise ValueError('لا تملك صلاحية اعتماد عجز الكاشير لهذا الفرع.')
-        action.status = PendingAction.Status.APPROVED
-        action.branch_reviewed_by = user
-        action.branch_reviewed_at = timezone.now()
-        action.branch_notes = notes or ''
-        action.save(update_fields=[
-            'status', 'branch_reviewed_by', 'branch_reviewed_at', 'branch_notes',
-        ])
-        execute_pending_action(action, user)
-        notif = _notify()
-        if action.requested_by_id:
-            notif.notify_user(
-                action.requested_by, action,
-                title=f'تم تنفيذ طلبك — {action.get_action_type_display()}',
-                message=f'الموظف: {action.employee.name}',
-                icon='check-circle', color='emerald',
-            )
-        return action
-
-    if action.action_type in SETTLEMENT_PENDING_ACTION_TYPES:
-        action.status = PendingAction.Status.APPROVED
-        action.branch_reviewed_by = user
-        action.branch_reviewed_at = timezone.now()
-        action.branch_notes = notes or ''
-        action.save(update_fields=[
-            'status', 'branch_reviewed_by', 'branch_reviewed_at', 'branch_notes',
-        ])
-        msg = execute_pending_action(action, user)
-        notif = _notify()
-        if action.requested_by_id:
-            notif.notify_user(
-                action.requested_by, action,
-                title=f'تم تنفيذ طلبك — {action.get_action_type_display()}',
-                message=msg or f'الموظف: {action.employee.name}',
-                icon='check-circle', color='emerald',
-            )
-        return action
-
-    action.status = PendingAction.Status.PENDING_GM
-    action.branch_reviewed_by = user
-    action.branch_reviewed_at = timezone.now()
-    action.branch_notes = notes or ''
-    action.save(update_fields=[
-        'status', 'branch_reviewed_by', 'branch_reviewed_at', 'branch_notes'
-    ])
-
-    decision = resolve_first_approver(action)
-    approver_label = decision.stage_label
-    notif = _notify()
-    notif.notify_general_managers(
-        action,
-        title=f'طلب جديد بانتظار موافقتك — {action.get_action_type_display()}',
-        message=f'الموظف: {action.employee.name} • وافق عليه {approver_label}',
-        icon='user-cog', color='amber',
-    )
-    from apps.core.services.whatsapp import workflow_notifier
-    workflow_notifier.notify_whatsapp_pending_gm(action)
-    return action
-
-
-@transaction.atomic
-def gm_approve_and_assign(action, user, officer, notes=''):
-    """المدير العام يوافق ويُسند المهمة لموظف موارد."""
-    from apps.core.models import PendingAction, Role
-
-    if action.status != PendingAction.Status.PENDING_GM:
-        raise ValueError('هذا الطلب ليس في مرحلة موافقة المدير العام.')
-    if not officer or not officer.is_active:
-        raise ValueError('يجب اختيار موظف موارد فعّال للإسناد.')
-    profile = getattr(officer, 'profile', None)
-    if not profile or not profile.role or profile.role.role_type != Role.RoleType.HR_OFFICER:
-        raise ValueError('المستخدم المختار ليس "موظف موارد".')
+    if action.status not in {
+        PendingAction.Status.PENDING_GM,
+        PendingAction.Status.PENDING_BRANCH,
+        PendingAction.Status.PENDING_OFFICER,
+    }:
+        raise ValueError('هذا الطلب ليس بانتظار اعتماد مدير الموارد.')
 
     now = timezone.now()
-    action.status = PendingAction.Status.PENDING_OFFICER
+    action.status = PendingAction.Status.APPROVED
     action.gm_reviewed_by = user
     action.gm_reviewed_at = now
     action.gm_notes = notes or ''
-    action.assigned_officer = officer
-    action.assigned_at = now
-    action.save(update_fields=[
-        'status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes',
-        'assigned_officer', 'assigned_at'
-    ])
+    action.save(update_fields=['status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes'])
 
-    notif = _notify()
-    notif.notify_user(
-        officer, action,
-        title=f'مهمة جديدة مُسندة إليك — {action.get_action_type_display()}',
-        message=f'الموظف: {action.employee.name} • أسندها {user.get_full_name() or user.username}',
-        icon='clipboard-check', color='indigo',
-    )
-    from apps.core.services.whatsapp import workflow_notifier
-    workflow_notifier.notify_whatsapp_officer_assigned(action, officer)
-    return action
-
-
-@transaction.atomic
-def officer_approve(action, user, notes=''):
-    """موظف الموارد يوافق → يتم التنفيذ تلقائياً."""
-    from apps.core.models import PendingAction
-
-    if action.status != PendingAction.Status.PENDING_OFFICER:
-        raise ValueError('هذا الطلب ليس في مرحلة موظف الموارد.')
-    if action.assigned_officer_id != user.id and not user.is_superuser:
-        raise ValueError('هذا الطلب غير مُسند إليك.')
-
-    action.status = PendingAction.Status.APPROVED
-    action.officer_reviewed_at = timezone.now()
-    action.officer_notes = notes or ''
-    action.save(update_fields=[
-        'status', 'officer_reviewed_at', 'officer_notes'
-    ])
-
-    # التنفيذ الفعلي
     msg = execute_pending_action(action, user)
 
-    # إشعار مقدّم الطلب بالاكتمال
     notif = _notify()
     if action.requested_by_id:
         notif.notify_user(
             action.requested_by, action,
             title=f'تم تنفيذ طلبك — {action.get_action_type_display()}',
-            message=f'الموظف: {action.employee.name}',
+            message=msg or f'الموظف: {action.employee.name}',
             icon='check-circle', color='emerald',
         )
     return msg
+
+
+@transaction.atomic
+def branch_approve(action, user, notes=''):
+    """توافق مع الإصدارات القديمة — يُحوَّل لاعتماد مدير الموارد."""
+    manager_approve(action, user, notes=notes)
+    return action
+
+
+@transaction.atomic
+def gm_approve_and_assign(action, user, officer=None, notes=''):
+    """اعتماد مدير الموارد — بدون إسناد لمرحلة ثالثة."""
+    manager_approve(action, user, notes=notes)
+    return action
+
+
+@transaction.atomic
+def officer_approve(action, user, notes=''):
+    """توافق مع الإصدارات القديمة — يُحوَّل لاعتماد مدير الموارد."""
+    return manager_approve(action, user, notes=notes)
 
 
 @transaction.atomic
@@ -1067,7 +980,7 @@ def resubmit_action(action, user):
     if action.requested_by_id != user.id and not user.is_superuser:
         raise ValueError('فقط مقدّم الطلب يمكنه إعادة إرساله.')
 
-    action.status = PendingAction.Status.PENDING_BRANCH
+    action.status = PendingAction.Status.PENDING_GM
     action.resubmit_count = (action.resubmit_count or 0) + 1
     # نُبقي بيانات الإرجاع للسجل التاريخي ولكن نمسح "صناديق" المراحل القديمة
     action.branch_reviewed_by = None
@@ -1101,15 +1014,13 @@ def resubmit_action(action, user):
 def notify_branch_on_create(action):
     """يُستدعى مرة واحدة بعد إنشاء PendingAction جديد."""
     from apps.core.models import PendingAction
-    from apps.core.services.whatsapp import workflow_notifier
 
     if action.status == PendingAction.Status.APPROVED:
         return
 
-    workflow_notifier.notify_whatsapp_request_created(action)
     notify_on_first_stage(
         action,
-        title=f'طلب جديد بانتظار موافقتك — {action.get_action_type_display()}',
+        title=f'طلب جديد بانتظار اعتمادك — {action.get_action_type_display()}',
         message=f'الموظف: {action.employee.name}'
                 f' • مقدّم الطلب: {action.requested_by.get_full_name() or action.requested_by.username}',
         icon='inbox',

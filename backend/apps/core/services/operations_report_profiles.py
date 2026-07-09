@@ -32,7 +32,6 @@ ALL_SECTION_KEYS: frozenset[str] = frozenset({
     'transfers',
     'terminations',
     'absences',
-    'cash_shortages',
     'business_trips',
     'custody',
     'reactivations',
