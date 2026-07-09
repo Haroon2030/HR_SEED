@@ -1,14 +1,9 @@
 """
-Pending Actions — Views (دورة موافقات متعدّدة المراحل)
-======================================================
-المراحل:
-    1) الأخصائي ينشئ → pending_branch
-    2) مدير الفرع يوافق → pending_gm           [branch_approve_action]
-    3) المدير العام يوافق ويُسند موظف موارد → pending_officer  [gm_approve_action]
-    4) موظف الموارد يوافق فيُنفَّذ تلقائياً → approved          [officer_approve_action]
-
-    + return_pending_action  — إرجاع للأخصائي من أي مرحلة
-    + resubmit_pending_action — الأخصائي يعيد الإرسال بعد التعديل
+Pending Actions — Views (دورة تعميد بمرحلتين)
+============================================
+• المدخل يرفع الطلب → بانتظار تعميد المدير
+• المدير يعتمِد ويُحيل للمدخل → بانتظار الإكمال
+• المدخل المُسنَد يُكمل التنفيذ
 """
 from types import SimpleNamespace
 
@@ -80,7 +75,7 @@ def _user_visible_actions(user):
         return qs
 
     if is_simple_hr_entry(user):
-        return qs.filter(requested_by=user)
+        return qs.filter(Q(requested_by=user) | Q(assigned_officer=user))
 
     return qs.filter(requested_by=user).distinct()
 
@@ -99,6 +94,10 @@ def _inbox_for(user, qs):
         has_filter = True
     if is_simple_hr_entry(user):
         f |= Q(status=PendingAction.Status.RETURNED, requested_by=user)
+        f |= Q(
+            status=PendingAction.Status.PENDING_OFFICER,
+            assigned_officer=user,
+        )
         has_filter = True
     return qs.filter(f) if has_filter else qs.none()
 
@@ -313,12 +312,8 @@ def list_pending_actions(request):
     counts = {
         'inbox': get_sidebar_counts(request.user)['pending_for_me_count'],
         'pending_branch': 0,
-        'pending_gm': (
-            pa_agg['c_gm'] + hr_agg['c_gm']
-            + pa_agg['c_branch'] + hr_agg['c_branch']
-            + pa_agg['c_officer'] + hr_agg['c_officer']
-        ),
-        'pending_officer': 0,
+        'pending_gm': pa_agg['c_gm'] + hr_agg['c_gm'] + pa_agg['c_branch'] + hr_agg['c_branch'],
+        'pending_officer': pa_agg['c_officer'] + hr_agg['c_officer'],
         'returned': pa_agg['c_returned'],
         'approved': pa_agg['c_approved'] + hr_agg['c_approved'],
         'mine': pa_agg['c_mine'] + hr_agg['c_mine'],
@@ -341,6 +336,17 @@ def list_pending_actions(request):
     })
 
 
+def get_hr_entry_staff():
+    """قائمة مدخلي الموارد لإسناد الطلبات بعد التعميد."""
+    from django.contrib.auth import get_user_model
+    from apps.core.models import Role
+
+    return get_user_model().objects.filter(
+        is_active=True,
+        profile__role__role_type=Role.RoleType.SPECIALIST,
+    ).select_related('profile__role').order_by('first_name', 'username')
+
+
 @login_required
 def pending_action_detail(request, action_id):
     if not can_view_operations(request.user):
@@ -358,15 +364,16 @@ def pending_action_detail(request, action_id):
         messages.error(request, 'لا تملك صلاحية رؤية هذا الطلب.')
         return redirect('web:list_pending_actions')
 
-    officers = []
-
+    officers = get_hr_entry_staff()
     current_stage = action.current_stage
-    if action.status in {
-        PendingAction.Status.PENDING_BRANCH,
-        PendingAction.Status.PENDING_OFFICER,
-    }:
-        current_stage = PendingAction.Stage.GM
-    can_act = bool(current_stage) and _can_act_at_stage(request.user, action, current_stage)
+    can_act_gm = (
+        current_stage == PendingAction.Stage.GM
+        and _can_act_at_stage(request.user, action, PendingAction.Stage.GM)
+    )
+    can_act_officer = (
+        current_stage == PendingAction.Stage.OFFICER
+        and _can_act_at_stage(request.user, action, PendingAction.Stage.OFFICER)
+    )
     can_resubmit = (
         action.status == PendingAction.Status.RETURNED
         and (action.requested_by_id == request.user.id or request.user.is_superuser)
@@ -376,7 +383,8 @@ def pending_action_detail(request, action_id):
     return render(request, 'pages/pending_actions/detail.html', {
         'action': action,
         'officers': officers,
-        'can_act': can_act,
+        'can_act_gm': can_act_gm,
+        'can_act_officer': can_act_officer,
         'can_resubmit': can_resubmit,
         'current_stage': current_stage,
         'first_decision': resolve_first_approver(action),
@@ -409,6 +417,7 @@ def gm_approve_action(request, action_id):
     if request.method != 'POST':
         return redirect('web:pending_action_detail', action_id=action_id)
     notes = (request.POST.get('notes') or '').strip()
+    officer_id = (request.POST.get('assigned_officer') or '').strip()
     try:
         with transaction.atomic():
             action = _locked(action_id)
@@ -416,11 +425,20 @@ def gm_approve_action(request, action_id):
                 return redirect('web:list_pending_actions')
             stage = PendingAction.Stage.GM
             if not _can_act_at_stage(request.user, action, stage):
-                messages.error(request, 'لا تملك صلاحية اعتماد هذا الطلب.')
+                messages.error(request, 'لا تملك صلاحية تعميد هذا الطلب.')
                 return redirect('web:list_pending_actions')
-            from apps.core.services.pending_actions import manager_approve
-            msg = manager_approve(action, request.user, notes)
-        messages.success(request, msg or 'تم اعتماد الطلب وتنفيذه بنجاح.')
+            from django.contrib.auth import get_user_model
+            from apps.core.services.pending_actions import gm_approve_and_assign
+
+            officer = None
+            if officer_id:
+                officer = get_user_model().objects.filter(pk=officer_id, is_active=True).first()
+            if officer is None:
+                officer = action.requested_by
+            if officer is None:
+                raise ValueError('يجب اختيار مدخل موارد لإكمال الطلب.')
+            gm_approve_and_assign(action, request.user, officer=officer, notes=notes)
+        messages.success(request, 'تم تعميد الطلب وإحالته للمدخل لإكمال التنفيذ.')
     except Exception as e:
         messages.error(request, log_web_action_error('gm_approve_action', e))
     return redirect('web:pending_action_detail', action_id=action_id)
@@ -428,8 +446,24 @@ def gm_approve_action(request, action_id):
 
 @login_required
 def officer_approve_action(request, action_id):
-    """توافق مع الإصدارات القديمة — يُوجَّه لاعتماد مدير الموارد."""
-    return gm_approve_action(request, action_id)
+    if request.method != 'POST':
+        return redirect('web:pending_action_detail', action_id=action_id)
+    notes = (request.POST.get('notes') or '').strip()
+    try:
+        with transaction.atomic():
+            action = _locked(action_id)
+            if _deny_if_action_not_visible(request, action):
+                return redirect('web:list_pending_actions')
+            stage = PendingAction.Stage.OFFICER
+            if not _can_act_at_stage(request.user, action, stage):
+                messages.error(request, 'لا تملك صلاحية إكمال هذا الطلب.')
+                return redirect('web:list_pending_actions')
+            from apps.core.services.pending_actions import officer_approve
+            msg = officer_approve(action, request.user, notes)
+        messages.success(request, msg or 'تم إكمال الطلب وتنفيذه بنجاح.')
+    except Exception as e:
+        messages.error(request, log_web_action_error('officer_approve_action', e))
+    return redirect('web:pending_action_detail', action_id=action_id)
 
 
 @login_required
@@ -469,7 +503,7 @@ def resubmit_pending_action(request, action_id):
                 return redirect('web:list_pending_actions')
             from apps.core.services.pending_actions import resubmit_action
             resubmit_action(action, request.user)
-        messages.success(request, 'تم إعادة إرسال الطلب لمدير الفرع.')
+        messages.success(request, 'تم إعادة إرسال الطلب لمدير الموارد للتعميد.')
     except Exception as e:
         messages.error(request, log_web_action_error('branch_approve_action', e))
     return redirect('web:pending_action_detail', action_id=action_id)

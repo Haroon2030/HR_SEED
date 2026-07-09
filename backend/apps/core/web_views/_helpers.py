@@ -154,19 +154,18 @@ def _is_general_manager(user):
 
 
 def _is_hr_officer(user):
-    """
-    هل المستخدم موظف موارد؟
-    موظف الموارد = الذي يستلم المهام المُسندة من المدير العام وينفّذها.
-    """
+    """هل المستخدم مدخل موارد (يُكمل الطلبات المُسنَدة إليه)؟"""
     if not user.is_authenticated:
         return False
-    return _user_role_type(user) == Role.RoleType.HR_OFFICER
+    from apps.core.workflow_simple import is_simple_hr_entry
+    return is_simple_hr_entry(user)
 
 
 def _can_act_at_stage(user, action, stage):
     """
-    هل يحق للمستخدم اعتماد الطلب؟
-    نموذج مبسّط: مدير الموارد فقط (مرحلة GM).
+    هل يحق للمستخدم اتخاذ إجراء في هذه المرحلة؟
+    • GM: مدير الموارد يعتمِد ويُحوّل للمدخل
+    • OFFICER: المدخل المُسنَد يُكمل التنفيذ
     """
     from apps.core.models import PendingAction
     from apps.core.services.workflow_access import stage_permission_required
@@ -175,16 +174,22 @@ def _can_act_at_stage(user, action, stage):
     if user.is_superuser:
         return True
 
-    if stage in {PendingAction.Stage.BRANCH, PendingAction.Stage.OFFICER}:
-        stage = PendingAction.Stage.GM
+    if stage == PendingAction.Stage.GM:
+        if not stage_permission_required(user, stage):
+            return False
+        return is_simple_hr_manager(user)
 
-    if stage != PendingAction.Stage.GM:
-        return False
+    if stage == PendingAction.Stage.OFFICER:
+        if action.assigned_officer_id != user.id:
+            return False
+        if not stage_permission_required(user, stage):
+            return False
+        return _is_hr_officer(user)
 
-    if not stage_permission_required(user, stage):
-        return False
+    if stage == PendingAction.Stage.BRANCH:
+        return _can_review_action(user, action)
 
-    return is_simple_hr_manager(user)
+    return False
 
 
 def _role_ok_at_stage(user, action, stage):

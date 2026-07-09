@@ -1,4 +1,4 @@
-"""توجيه الاعتماد — نموذج مبسّط: مدخل موارد → مدير موارد (خطوة واحدة)."""
+"""توجيه الاعتماد — نموذج مبسّط: موظف الموارد يرفع → المدير يعتمِد."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -53,7 +53,7 @@ def approver_display_label(user) -> str:
 
 
 def first_stage_tab_label(user) -> str:
-    return 'مدير الموارد'
+    return 'تعميد المدير'
 
 
 def snapshot_routing_fields(employee) -> dict:

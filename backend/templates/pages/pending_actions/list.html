@@ -7,7 +7,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold text-slate-900">طلبات العمليات السريعة</h1>
-            <p class="text-slate-500 text-xs">دورة الاعتماد: مدخل الموارد يرفع → مدير الموارد يعتمد</p>
+            <p class="text-slate-500 text-xs">دورة التعميد: المدخل يرفع → المدير يعتمِد → المدخل يُكمل التنفيذ</p>
         </div>
     </div>
 
@@ -21,8 +21,13 @@
         </a>
         <a href="?tab=pending_gm" role="tab" class="hr-tab-btn hr-tab-btn--indigo{% if tab == 'pending_gm' %} is-active{% endif %}">
             <i data-lucide="user-cog" class="w-4 h-4"></i>
-            <span>بانتظار مدير الموارد</span>
+            <span>بانتظار تعميد المدير</span>
             {% if counts.pending_gm %}<span class="hr-tab-badge">{{ counts.pending_gm }}</span>{% endif %}
+        </a>
+        <a href="?tab=pending_officer" role="tab" class="hr-tab-btn hr-tab-btn--purple{% if tab == 'pending_officer' %} is-active{% endif %}">
+            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+            <span>بانتظار إكمال المدخل</span>
+            {% if counts.pending_officer %}<span class="hr-tab-badge">{{ counts.pending_officer }}</span>{% endif %}
         </a>
         <a href="?tab=returned" role="tab" class="hr-tab-btn hr-tab-btn--rose{% if tab == 'returned' %} is-active{% endif %}">
             <i data-lucide="undo-2" class="w-4 h-4"></i>
@@ -88,7 +93,7 @@
                         <td class="px-3 py-2 text-xs font-medium text-slate-900 whitespace-nowrap">{{ a.employee_name|default:"-" }}</td>
                         <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ a.branch_name|default:"-" }}</td>
                         <td class="px-3 py-2 text-xs hr-col-approval-stage whitespace-nowrap">
-                            {% include "components/approval_workflow_track.html" with track=a first_stage_label=a.first_stage_label gm_label="المدير العام" officer_label="موظف الموارد" %}
+                            {% include "components/approval_workflow_track.html" with track=a gm_label="تعميد المدير" officer_label="إكمال المدخل" %}
                             {% if a.resubmit_count %}<span class="text-xs text-slate-400 ms-2">إعادة إرسال #{{ a.resubmit_count }}</span>{% endif %}
                         </td>
                         <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ a.requested_by_name }}</td>

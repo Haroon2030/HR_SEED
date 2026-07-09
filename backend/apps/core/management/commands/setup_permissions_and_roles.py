@@ -121,10 +121,10 @@ class Command(BaseCommand):
             {'code': 'operations.view', 'name': 'عرض طلبات العمليات', 'module': 'operations'},
             {'code': 'operations.approve_branch', 'name': 'موافقة مدير الفرع', 'module': 'operations'},
             {'code': 'operations.approve_admin', 'name': 'موافقة مدير الإدارة', 'module': 'operations'},
-            {'code': 'operations.approve_gm', 'name': 'موافقة المدير العام', 'module': 'operations'},
+            {'code': 'operations.approve_gm', 'name': 'تعميد العمليات (المدير)', 'module': 'operations'},
             {'code': 'operations.approve_officer', 'name': 'تنفيذ موظف الموارد', 'module': 'operations'},
             {'code': 'operations.return', 'name': 'إرجاع طلب للتعديل', 'module': 'operations'},
-            {'code': 'operations.resubmit', 'name': 'إعادة إرسال طلب', 'module': 'operations'},
+            {'code': 'operations.resubmit', 'name': 'رفع وإعادة إرسال طلب', 'module': 'operations'},
 
             # ═══════════════════════════════════════════════════════════
             # إدارة الصيانة

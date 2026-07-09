@@ -73,8 +73,8 @@ def _compute_sidebar_counts(user) -> dict[str, int]:
     from apps.core.services.workflow_access import can_view_operations
     from apps.core.web_views._helpers import (
         _is_general_manager,
-        _is_hr_officer,
     )
+    from apps.core.workflow_simple import is_simple_hr_entry
     from apps.employees.models import EmploymentRequest
 
     if not can_view_operations(user):
@@ -121,7 +121,7 @@ def _compute_sidebar_counts(user) -> dict[str, int]:
         inbox_filter |= first_pa_q
     elif user.is_superuser:
         inbox_filter |= Q(status=PendingAction.Status.PENDING_BRANCH)
-    if _is_hr_officer(user):
+    if is_simple_hr_entry(user):
         inbox_filter |= Q(
             status=PendingAction.Status.PENDING_OFFICER,
             assigned_officer=user,
@@ -147,7 +147,7 @@ def _compute_sidebar_counts(user) -> dict[str, int]:
         hire_inbox |= first_hire_q
     elif user.is_superuser:
         hire_inbox |= Q(status=EmploymentRequest.Status.PENDING_BRANCH)
-    if _is_hr_officer(user):
+    if is_simple_hr_entry(user):
         hire_inbox |= Q(
             status=EmploymentRequest.Status.PENDING_OFFICER,
             assigned_officer=user,

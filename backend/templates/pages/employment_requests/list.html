@@ -69,7 +69,7 @@
                         <td class="px-3 py-2 text-xs text-slate-500">{{ r.department.name|default:"-" }}</td>
                         <td class="px-3 py-2 text-xs text-slate-500">{{ r.administration.name|default:"-" }}</td>
                         <td class="px-3 py-2 text-xs hr-col-approval-stage">
-                            {% include "components/approval_workflow_track.html" with track=r first_stage_label=r.first_stage_label gm_label="مدير الموارد" officer_label="الأخصائي" %}
+                            {% include "components/approval_workflow_track.html" with track=r gm_label="تعميد المدير" %}
                         </td>
                         <td class="px-3 py-2 text-xs">
                             {% if r.commencement_document %}

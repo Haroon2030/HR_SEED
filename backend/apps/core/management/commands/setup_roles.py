@@ -21,7 +21,7 @@ def _role_meta(role_type: str) -> dict:
 
 
 class Command(BaseCommand):
-    help = 'إنشاء الأدوار الثلاثة: أدمن، مدير موارد، مدخل موارد'
+    help = 'إنشاء الأدوار الثلاثة: أدمن، مدير موارد، موظف موارد'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -78,9 +78,9 @@ class Command(BaseCommand):
             {
                 **_role_meta(Role.RoleType.SPECIALIST),
                 'permissions': [
-                    'employees.view', 'employees.add', 'employees.edit',
+                    'employees.view', 'employees.edit',
                     'departments.view', 'branches.view',
-                    'operations.view', 'operations.resubmit',
+                    'operations.view', 'operations.approve_officer', 'operations.resubmit',
                     'attendance.view',
                     'leaves.view',
                 ],

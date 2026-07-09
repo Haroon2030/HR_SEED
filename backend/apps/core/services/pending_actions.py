@@ -877,23 +877,105 @@ def create_and_execute_settlement_action(
 
 
 @transaction.atomic
-def manager_approve(action, user, notes=''):
-    """مدير الموارد يعتمد الطلب ويُنفّذه مباشرة (اعتماد واحد)."""
+def manager_approve(action, user, officer=None, notes=''):
+    """توافق خلفي — يُحوّل لاعتماد المدير وإسناد المدخل."""
+    return gm_approve_and_assign(action, user, officer=officer, notes=notes)
+
+
+@transaction.atomic
+def branch_approve(action, user, notes=''):
+    """مرحلة مدير الفرع (قديمة) — تُحوّل الطلب لبانتظار تعميد المدير."""
     from apps.core.models import PendingAction
+    from apps.core.services.whatsapp import workflow_notifier
+
+    if action.status != PendingAction.Status.PENDING_BRANCH:
+        raise ValueError('الطلب ليس بانتظار موافقة مدير الفرع.')
+
+    now = timezone.now()
+    action.status = PendingAction.Status.PENDING_GM
+    action.branch_reviewed_by = user
+    action.branch_reviewed_at = now
+    action.branch_notes = notes or ''
+    action.save(update_fields=[
+        'status', 'branch_reviewed_by', 'branch_reviewed_at', 'branch_notes',
+    ])
+    workflow_notifier.notify_whatsapp_pending_gm(action)
+    return action
+
+
+def _validate_entry_officer(officer) -> None:
+    from apps.core.workflow_simple import is_simple_hr_entry
+
+    if not officer or not getattr(officer, 'is_active', False):
+        raise ValueError('يجب اختيار مدخل موارد نشط لإكمال الطلب.')
+    if not officer.is_superuser and not is_simple_hr_entry(officer):
+        raise ValueError('المُسنَد إليه يجب أن يكون مدخل موارد.')
+
+
+@transaction.atomic
+def gm_approve_and_assign(action, user, officer=None, notes=''):
+    """مدير الموارد يعتمِد الطلب ويُحوّله للمدخل لإكمال التنفيذ."""
+    from apps.core.models import PendingAction
+    from apps.core.services.whatsapp import workflow_notifier
 
     if action.status not in {
         PendingAction.Status.PENDING_GM,
         PendingAction.Status.PENDING_BRANCH,
-        PendingAction.Status.PENDING_OFFICER,
     }:
-        raise ValueError('هذا الطلب ليس بانتظار اعتماد مدير الموارد.')
+        raise ValueError('هذا الطلب ليس بانتظار تعميد المدير.')
+
+    assignee = officer or action.requested_by
+    _validate_entry_officer(assignee)
 
     now = timezone.now()
-    action.status = PendingAction.Status.APPROVED
+    action.status = PendingAction.Status.PENDING_OFFICER
     action.gm_reviewed_by = user
     action.gm_reviewed_at = now
     action.gm_notes = notes or ''
-    action.save(update_fields=['status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes'])
+    action.assigned_officer = assignee
+    action.assigned_at = now
+    action.save(update_fields=[
+        'status', 'gm_reviewed_by', 'gm_reviewed_at', 'gm_notes',
+        'assigned_officer', 'assigned_at',
+    ])
+
+    notif = _notify()
+    notif.notify_user(
+        assignee, action,
+        title=f'طلب بانتظار إكمالك — {action.get_action_type_display()}',
+        message=f'الموظف: {action.employee.name}',
+        icon='clipboard-check', color='indigo',
+    )
+    workflow_notifier.notify_whatsapp_officer_assigned(action, assignee)
+
+    if action.requested_by_id and action.requested_by_id != assignee.id:
+        notif.notify_user(
+            action.requested_by, action,
+            title=f'تم تعميد طلبك — {action.get_action_type_display()}',
+            message=(
+                f'أُحيل للمدخل: '
+                f'{assignee.get_full_name() or assignee.username}'
+            ),
+            icon='check-circle', color='primary',
+        )
+    return action
+
+
+@transaction.atomic
+def officer_approve(action, user, notes=''):
+    """المدخل المُسنَد يُكمل تنفيذ الطلب."""
+    from apps.core.models import PendingAction
+
+    if action.status != PendingAction.Status.PENDING_OFFICER:
+        raise ValueError('هذا الطلب ليس بانتظار إكمال المدخل.')
+    if action.assigned_officer_id != user.id and not user.is_superuser:
+        raise ValueError('هذا الطلب غير مُسنَد إليك.')
+
+    now = timezone.now()
+    action.status = PendingAction.Status.APPROVED
+    action.officer_reviewed_at = now
+    action.officer_notes = notes or ''
+    action.save(update_fields=['status', 'officer_reviewed_at', 'officer_notes'])
 
     msg = execute_pending_action(action, user)
 
@@ -906,26 +988,6 @@ def manager_approve(action, user, notes=''):
             icon='check-circle', color='emerald',
         )
     return msg
-
-
-@transaction.atomic
-def branch_approve(action, user, notes=''):
-    """توافق مع الإصدارات القديمة — يُحوَّل لاعتماد مدير الموارد."""
-    manager_approve(action, user, notes=notes)
-    return action
-
-
-@transaction.atomic
-def gm_approve_and_assign(action, user, officer=None, notes=''):
-    """اعتماد مدير الموارد — بدون إسناد لمرحلة ثالثة."""
-    manager_approve(action, user, notes=notes)
-    return action
-
-
-@transaction.atomic
-def officer_approve(action, user, notes=''):
-    """توافق مع الإصدارات القديمة — يُحوَّل لاعتماد مدير الموارد."""
-    return manager_approve(action, user, notes=notes)
 
 
 @transaction.atomic

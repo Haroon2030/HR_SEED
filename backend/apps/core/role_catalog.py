@@ -36,17 +36,17 @@ ROLE_CATALOG: dict[str, dict[str, str]] = {
     Role.RoleType.HR_MANAGER: {
         'code': 'HR_MANAGER',
         'name': 'HR_MANAGER — مدير الموارد',
-        'type_label': 'HR_MANAGER — مدير الموارد (اعتماد وتنفيذ)',
+        'type_label': 'HR_MANAGER — مدير الموارد (تعميد وتنفيذ)',
         'description': (
-            'اعتماد طلبات مدخل الموارد وتنفيذها، إدارة الموظفين والرواتب والتقارير على مستوى الشركة.'
+            'تعميد طلبات موظف الموارد وتنفيذها، إدارة الموظفين والرواتب والتقارير على مستوى الشركة.'
         ),
     },
     Role.RoleType.SPECIALIST: {
         'code': 'HR_ENTRY',
         'name': 'HR_ENTRY — مدخل الموارد',
-        'type_label': 'HR_ENTRY — مدخل الموارد (إدخال ورفع الطلبات)',
+        'type_label': 'HR_ENTRY — مدخل الموارد (رفع وإكمال العمليات)',
         'description': (
-            'إدخال وتحديث بيانات الموظفين ورفع طلبات العمليات السريعة — يرى كل الفروع.'
+            'رفع طلبات العمليات السريعة وإكمالها بعد تعميد المدير — يرى كل الفروع.'
         ),
     },
 }
@@ -60,6 +60,7 @@ LEGACY_ROLE_NAME_TO_TYPE: dict[str, str] = {
     'أخصائي موارد بشرية': Role.RoleType.SPECIALIST,
     'أخصائي إدخال البيانات': Role.RoleType.SPECIALIST,
     'مدخل الموارد': Role.RoleType.SPECIALIST,
+    'موظف الموارد': Role.RoleType.SPECIALIST,
     'مدير إدارة': Role.RoleType.HR_MANAGER,
     'مدير فرع': Role.RoleType.HR_MANAGER,
     'محاسب الفرع': Role.RoleType.HR_MANAGER,

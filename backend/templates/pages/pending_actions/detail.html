@@ -13,7 +13,8 @@
             <p class="text-slate-500 text-xs">الموظف: <span class="font-semibold text-slate-700">{{ action.employee.name }}</span> • الفرع: {{ action.branch.name|default:"-" }}</p>
         </div>
         <div>
-            {% if action.status == 'pending_branch' or action.status == 'pending_gm' or action.status == 'pending_officer' %}<span class="px-3 py-1 rounded bg-indigo-100 text-indigo-800 text-sm font-semibold">⏳ بانتظار مدير الموارد</span>
+            {% if action.status == 'pending_branch' or action.status == 'pending_gm' %}<span class="px-3 py-1 rounded bg-indigo-100 text-indigo-800 text-sm font-semibold">⏳ بانتظار تعميد المدير</span>
+            {% elif action.status == 'pending_officer' %}<span class="px-3 py-1 rounded bg-purple-100 text-purple-800 text-sm font-semibold">⏳ بانتظار إكمال المدخل{% if action.assigned_officer %} — {{ action.assigned_officer.get_full_name|default:action.assigned_officer.username }}{% endif %}</span>
             {% elif action.status == 'returned' %}<span class="px-3 py-1 rounded bg-rose-100 text-rose-800 text-sm font-semibold">↩ مُرتجَع للتعديل</span>
             {% elif action.status == 'approved' %}<span class="px-3 py-1 rounded bg-emerald-100 text-emerald-800 text-sm font-semibold">✓ مُنفَّذ</span>
             {% endif %}
@@ -128,7 +129,7 @@
             </div>
 
             <!-- Action Panel -->
-            {% if can_act or can_resubmit %}
+            {% if can_act_gm or can_act_officer or can_resubmit %}
             <div class="bg-white rounded-xl shadow-sm border border-primary-200 p-4">
                 <h3 class="text-sm font-bold text-primary-800 mb-3 pb-2 border-b border-primary-100">
                     <i data-lucide="zap" class="w-4 h-4 inline-block ml-1"></i> اتخاذ قرار
@@ -146,55 +147,48 @@
                     </form>
                 {% endif %}
 
-                {% if can_act and current_stage == 'gm' %}
+                {% if can_act_gm %}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="indigo" icon="check" x_click="panel='approve'" %}
+                        {% include "components/hr_btn.html" with label="تعميد وإحالة للمدخل" type="button" variant="indigo" icon="check" x_click="panel='approve'" %}
                         {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
                     </div>
                     <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
-                        <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
+                        <label class="block text-xs font-semibold text-slate-600">إحالة الإكمال إلى</label>
+                        <select name="assigned_officer" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            {% for u in officers %}
+                            <option value="{{ u.id }}"{% if action.requested_by_id == u.id %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                            {% empty %}
+                            {% if action.requested_by %}
+                            <option value="{{ action.requested_by_id }}" selected>{{ action.requested_by.get_full_name|default:action.requested_by.username }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <label class="block text-xs font-semibold text-slate-600">ملاحظات التعميد (اختياري)</label>
                         <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                         <div class="flex justify-end gap-2">
                             {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="indigo" %}
+                            {% include "components/hr_btn.html" with label="تعميد وإحالة" type="submit" variant="indigo" %}
                         </div>
                     </form>
                 {% endif %}
 
-                {% if can_act and current_stage == 'branch' %}
+                {% if can_act_officer %}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="success" icon="check" x_click="panel='approve'" %}
-                        {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
+                        {% include "components/hr_btn.html" with label="إكمال التنفيذ" type="button" variant="purple" icon="check" x_click="panel='complete'" %}
                     </div>
-                    <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
+                    <form method="POST" action="{% url 'web:officer_approve_action' action.id %}" x-show="panel=='complete'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
-                        <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
+                        <label class="block text-xs font-semibold text-slate-600">ملاحظات الإكمال (اختياري)</label>
                         <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                         <div class="flex justify-end gap-2">
                             {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="success" %}
+                            {% include "components/hr_btn.html" with label="إكمال التنفيذ" type="submit" variant="purple" %}
                         </div>
                     </form>
                 {% endif %}
 
-                {% if can_act and current_stage == 'officer' %}
-                    <div class="flex flex-wrap items-center gap-2 mb-3">
-                        {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="button" variant="purple" icon="check" x_click="panel='approve'" %}
-                        {% include "components/hr_btn.html" with label="إرجاع للتعديل" type="button" variant="danger" icon="undo-2" x_click="panel='return'" %}
-                    </div>
-                    <form method="POST" action="{% url 'web:gm_approve_action' action.id %}" x-show="panel=='approve'" x-cloak class="space-y-2 mt-3">
-                        {% csrf_token %}
-                        <label class="block text-xs font-semibold text-slate-600">ملاحظات (اختياري)</label>
-                        <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
-                        <div class="flex justify-end gap-2">
-                            {% include "components/hr_btn.html" with label="إلغاء" type="button" variant="secondary" size="sm" x_click="panel=null" %}
-                            {% include "components/hr_btn.html" with label="اعتماد وتنفيذ" type="submit" variant="purple" %}
-                        </div>
-                    </form>
-                {% endif %}
-
-                {% if can_act %}
+                {% if can_act_gm or can_act_officer %}
                     <form method="POST" action="{% url 'web:return_pending_action' action.id %}" x-show="panel=='return'" x-cloak class="space-y-2 mt-3">
                         {% csrf_token %}
                         <label class="block text-xs font-semibold text-slate-600">سبب الإرجاع <span class="text-red-500">*</span></label>
@@ -215,46 +209,33 @@
                 <i data-lucide="git-branch" class="w-4 h-4 inline-block ml-1"></i> الخط الزمني
             </h3>
             <ol class="relative border-r-2 border-slate-200 space-y-4 pr-4">
-                <!-- 1. Created -->
                 <li>
                     <div class="absolute -right-2 w-4 h-4 rounded-full bg-primary-500 border-2 border-white"></div>
-                    <p class="text-xs font-bold text-slate-800">إنشاء الطلب</p>
+                    <p class="text-xs font-bold text-slate-800">رفع الطلب — المدخل</p>
                     <p class="text-xs text-slate-500">{{ action.requested_by.get_full_name|default:action.requested_by.username }}</p>
                     <p class="text-xs text-slate-400">{{ action.requested_at|date:"Y-m-d H:i" }}</p>
                 </li>
-                <!-- 2. Branch -->
-                <li>
-                    <div class="absolute -right-2 w-4 h-4 rounded-full {% if action.branch_reviewed_at %}bg-emerald-500{% else %}bg-slate-300{% endif %} border-2 border-white"></div>
-                    <p class="text-xs font-bold {% if action.branch_reviewed_at %}text-slate-800{% else %}text-slate-400{% endif %}">{{ first_decision.stage_label }}</p>
-                    {% if action.branch_reviewed_at %}
-                        <p class="text-xs text-slate-500">{{ action.branch_reviewed_by.get_full_name|default:action.branch_reviewed_by.username }}</p>
-                        <p class="text-xs text-slate-400">{{ action.branch_reviewed_at|date:"Y-m-d H:i" }}</p>
-                        {% if action.branch_notes %}<p class="text-xs text-slate-600 mt-1 px-2 py-1 bg-slate-50 rounded">{{ action.branch_notes }}</p>{% endif %}
-                    {% else %}
-                        <p class="text-xs text-slate-400">— بانتظار —</p>
-                    {% endif %}
-                </li>
-                <!-- 3. GM -->
                 <li>
                     <div class="absolute -right-2 w-4 h-4 rounded-full {% if action.gm_reviewed_at %}bg-emerald-500{% else %}bg-slate-300{% endif %} border-2 border-white"></div>
-                    <p class="text-xs font-bold {% if action.gm_reviewed_at %}text-slate-800{% else %}text-slate-400{% endif %}">المدير العام</p>
+                    <p class="text-xs font-bold {% if action.gm_reviewed_at %}text-slate-800{% else %}text-slate-400{% endif %}">تعميد المدير</p>
                     {% if action.gm_reviewed_at %}
                         <p class="text-xs text-slate-500">{{ action.gm_reviewed_by.get_full_name|default:action.gm_reviewed_by.username }}</p>
                         <p class="text-xs text-slate-400">{{ action.gm_reviewed_at|date:"Y-m-d H:i" }}</p>
-                        {% if action.assigned_officer %}<p class="text-xs text-indigo-700 mt-1">أُسند إلى: <strong>{{ action.assigned_officer.get_full_name|default:action.assigned_officer.username }}</strong></p>{% endif %}
                         {% if action.gm_notes %}<p class="text-xs text-slate-600 mt-1 px-2 py-1 bg-slate-50 rounded">{{ action.gm_notes }}</p>{% endif %}
                     {% else %}
                         <p class="text-xs text-slate-400">— بانتظار —</p>
                     {% endif %}
                 </li>
-                <!-- 4. Officer -->
                 <li>
                     <div class="absolute -right-2 w-4 h-4 rounded-full {% if action.officer_reviewed_at %}bg-emerald-500{% else %}bg-slate-300{% endif %} border-2 border-white"></div>
-                    <p class="text-xs font-bold {% if action.officer_reviewed_at %}text-slate-800{% else %}text-slate-400{% endif %}">موظف الموارد</p>
+                    <p class="text-xs font-bold {% if action.officer_reviewed_at %}text-slate-800{% else %}text-slate-400{% endif %}">إكمال المدخل</p>
                     {% if action.officer_reviewed_at %}
                         <p class="text-xs text-slate-500">{{ action.assigned_officer.get_full_name|default:action.assigned_officer.username }}</p>
                         <p class="text-xs text-slate-400">{{ action.officer_reviewed_at|date:"Y-m-d H:i" }}</p>
                         {% if action.officer_notes %}<p class="text-xs text-slate-600 mt-1 px-2 py-1 bg-slate-50 rounded">{{ action.officer_notes }}</p>{% endif %}
+                    {% elif action.assigned_officer %}
+                        <p class="text-xs text-indigo-700 mt-1">مُسنَد إلى: <strong>{{ action.assigned_officer.get_full_name|default:action.assigned_officer.username }}</strong></p>
+                        <p class="text-xs text-slate-400">— بانتظار —</p>
                     {% else %}
                         <p class="text-xs text-slate-400">— بانتظار —</p>
                     {% endif %}

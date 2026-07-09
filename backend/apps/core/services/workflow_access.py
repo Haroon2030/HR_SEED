@@ -50,16 +50,23 @@ def can_view_operations(user) -> bool:
 
 
 def stage_permission_required(user, stage) -> bool:
-    """اعتماد الطلبات — مدير الموارد (operations.approve_gm)."""
+    """صلاحيات مراحل التعميد — مدير الموارد أو المدخل المُسنَد."""
     if user.is_superuser:
         return True
     if _is_super_or_admin(user):
         return True
     from apps.core.models import PendingAction
+    if stage == PendingAction.Stage.GM:
+        return (
+            has_permission(user, 'operations.approve_gm')
+            or has_permission(user, 'operations.approve_officer')
+            or has_permission(user, 'operations.approve_branch')
+            or has_permission(user, 'operations.approve_admin')
+        )
+    if stage == PendingAction.Stage.OFFICER:
+        return has_permission(user, 'operations.approve_officer')
     if stage in {
         PendingAction.Stage.BRANCH,
-        PendingAction.Stage.GM,
-        PendingAction.Stage.OFFICER,
     }:
         return (
             has_permission(user, 'operations.approve_gm')
