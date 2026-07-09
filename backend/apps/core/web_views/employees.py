@@ -23,7 +23,6 @@ from apps.departments.models import Department
 from apps.core.web_views._helpers import (
     employee_branch_access_required,
     filter_employees_queryset_for_user,
-    general_manager_required,
 )
 from apps.core.decorators import permission_required
 from apps.core.salary_access import EMPLOYEE_SALARY_FIELD_NAMES, user_can_edit_salary
@@ -229,7 +228,6 @@ def add_employee(request):
 # =============================================================================
 @login_required
 @permission_required('employees.add')
-@general_manager_required
 def create_employee_full(request):
     """إنشاء موظف مباشرة عبر النموذج الرئيسي الكامل (7 تبويبات)"""
     from apps.employees.models import Employee
